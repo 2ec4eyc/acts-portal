@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() &&
+        (("email" in request.auth.token && request.auth.token.email == "actsportal2026@gmail.com") || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+    
+    // We must allow any authenticated user to read all users so they can fetch the active user list,
+    // OR we must ensure they can read the collection. Since the frontend fetches the entire collection
+    // without `where` clauses matching the security rule (for AdminPanel it's `collection(db, "users")`),
+    // the rule `allow read: if isOwner(userId) || isAdmin() || isStaff();` requires evaluating `isStaff()`
+    // which uses a `get()` call. Firestore rules allow up to 10 document access calls per request.
+    // When performing a collection query, `get()` evaluates once. 
+    // Let's ensure the rule allows read for these roles cleanly.
+
+    function isStaff() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['president', 'vice president', 'teacher', 'admin'])
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) && 
+             data.uid is string && 
+             data.email is string && 
+             data.role in ['admin', 'student', 'president', 'vice president', 'teacher'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin() || isStaff());
+      allow delete: if isAdmin();
+    }
+    match /archived_users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+    match /trash/{courseId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /uploaded_files/{fileId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isStaff();
+    }
+  }
+}

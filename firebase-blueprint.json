@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "student"] },
+        "adminCategory": { "type": "string" },
+        "schoolType": { "type": "string", "enum": ["Day School", "Night School"] },
+        "status": { "type": "string" },
+        "firstYearSchoolYear": { "type": "string" },
+        "secondYearSchoolYear": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "currentSessionId": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Course information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "professor": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
+        "frequency": { "type": "string" },
+        "yearLevel": { "type": "string" },
+        "semester": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "professor", "yearLevel", "semester"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "showStudentSchedule": { "type": "boolean" },
+        "currentSchoolYear": { "type": "string" },
+        "currentSemester": { "type": "string" },
+        "publishCurrentGrades": { "type": "boolean" }
+      }
+    },
+    "UploadedFile": {
+      "title": "Uploaded File",
+      "description": "Files uploaded by teachers for notes, exams, or activities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseName": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "teacherUid": { "type": "string" },
+        "category": { "type": "string", "enum": ["notes", "exams", "activity"] },
+        "fileName": { "type": "string" },
+        "fileData": { "type": "string" },
+        "fileType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "eventDate": { "type": "string" },
+        "eventTime": { "type": "string" },
+        "instructions": { "type": "string" }
+      },
+      "required": ["id", "courseId", "courseName", "teacherUid", "category", "fileName", "fileData", "createdAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Student attendance records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "date": { "type": "string" },
+        "studentId": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent"] },
+        "isExcused": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "courseId", "date", "studentId", "status"]
+    }
+  },
+  "firestore": {
+    "/attendance/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Student attendance records"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Active user accounts"
+    },
+    "/archived_users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Archived user accounts"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Active courses"
+    },
+    "/trash/{courseId}": {
+      "schema": "Course",
+      "description": "Trashed courses"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Global application settings"
+    },
+    "/uploaded_files/{fileId}": {
+      "schema": "UploadedFile",
+      "description": "Uploaded materials and activities"
+    }
+  }
+}
