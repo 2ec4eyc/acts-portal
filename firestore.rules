@@ -10,46 +10,84 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+    function callerDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function callerRole() {
+      return exists(callerDoc()) ? get(callerDoc()).data.role : null;
+    }
     function isAdmin() {
       return isAuthenticated() &&
-        (("email" in request.auth.token && request.auth.token.email == "actsportal2026@gmail.com") || 
-         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+        (("email" in request.auth.token && request.auth.token.email == "actsportal2026@gmail.com") ||
+         callerRole() == 'admin');
     }
-    
-    // We must allow any authenticated user to read all users so they can fetch the active user list,
-    // OR we must ensure they can read the collection. Since the frontend fetches the entire collection
-    // without `where` clauses matching the security rule (for AdminPanel it's `collection(db, "users")`),
-    // the rule `allow read: if isOwner(userId) || isAdmin() || isStaff();` requires evaluating `isStaff()`
-    // which uses a `get()` call. Firestore rules allow up to 10 document access calls per request.
-    // When performing a collection query, `get()` evaluates once. 
-    // Let's ensure the rule allows read for these roles cleanly.
-
+    function isTeacher() {
+      return isAuthenticated() && callerRole() == 'teacher';
+    }
+    function isExecutive() {
+      return isAuthenticated() && callerRole() in ['president', 'vice president'];
+    }
     function isStaff() {
-      return isAuthenticated() && (
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['president', 'vice president', 'teacher', 'admin'])
-      );
+      return isAdmin() || isTeacher() || isExecutive();
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role']) && 
-             data.uid is string && 
-             data.email is string && 
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
              data.role in ['admin', 'student', 'president', 'vice president', 'teacher'];
+    }
+
+    // Fields a user may change on their own profile. Everything else
+    // (role, status, grades, editHistory, enrollment fields, ...) is
+    // managed by staff. Keep in sync with PROFILE_SELF_EDITABLE_FIELDS in index.tsx.
+    function selfEditableFields() {
+      return [
+        'firstName', 'middleName', 'lastName', 'fullName', 'photoURL',
+        'contactNumber', 'gender', 'birthDate',
+        'address', 'city', 'province', 'postalCode',
+        'church', 'pastorName',
+        'holyGhostBaptismDate', 'holyGhostBaptismLocation',
+        'waterBaptismDate', 'waterBaptismLocation',
+        'emergencyFirstName', 'emergencyLastName',
+        'emergencyRelationship', 'emergencyContactNumber',
+        'currentSessionId'
+      ];
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin() || isStaff());
+      allow read: if isOwner(userId) || isStaff();
+
+      // Self-creation (first login without a profile) is only allowed as a plain student.
+      allow create: if isValidUser(request.resource.data) &&
+        request.resource.data.uid == userId &&
+        (isAdmin() ||
+         (isOwner(userId) &&
+          request.resource.data.role == 'student' &&
+          request.resource.data.status == 'Active' &&
+          request.resource.data.grades == []));
+
+      allow update: if isValidUser(request.resource.data) &&
+        request.resource.data.uid == resource.data.uid && (
+          isAdmin() ||
+          // Executives manage accounts and records but cannot change roles.
+          (isExecutive() && !changedKeys().hasAny(['role', 'uid'])) ||
+          // Teachers may only record grades for students.
+          (isTeacher() && resource.data.role == 'student' &&
+           changedKeys().hasOnly(['grades', 'editHistory'])) ||
+          (isOwner(userId) && changedKeys().hasOnly(selfEditableFields()))
+        );
+
       allow delete: if isAdmin();
     }
     match /archived_users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isStaff();
       allow create, update, delete: if isAdmin();
     }
     match /courses/{courseId} {
@@ -66,11 +104,15 @@ service cloud.firestore {
     }
     match /uploaded_files/{fileId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated();
+      allow create: if isStaff() && request.resource.data.teacherUid == request.auth.uid;
+      allow update: if isAdmin() ||
+        (isStaff() && resource.data.teacherUid == request.auth.uid &&
+         request.resource.data.teacherUid == request.auth.uid);
+      allow delete: if isAdmin() || (isStaff() && resource.data.teacherUid == request.auth.uid);
     }
     match /attendance/{attendanceId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin() || isStaff();
+      allow create, update, delete: if isStaff();
     }
   }
 }

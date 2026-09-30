@@ -73,11 +73,15 @@ async function startServer() {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    if (!["users", "archived_users"].includes(collection)) {
+      return res.status(400).json({ error: "Invalid collection" });
+    }
+
     try {
       // Verify the requester is an admin
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       const requesterUid = decodedToken.uid;
-      
+
       // Check if requester is admin in Firestore
       const userDoc = await db.collection("users").doc(requesterUid).get();
       const userData = userDoc.data();
