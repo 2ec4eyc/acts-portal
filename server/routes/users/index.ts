@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { methods, queryParam } from "../../server/lib/http.js";
-import { listProfiles, loadProfile } from "../../server/lib/profiles.js";
-import { AccountCreate, createAccount } from "../../server/lib/users.js";
+import { requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { methods, queryParam } from "../../lib/http.js";
+import { listProfiles, loadProfile } from "../../lib/profiles.js";
+import { AccountCreate, createAccount } from "../../lib/users.js";
 
 const ListQuery = z.object({
   role: z.enum(["student", "teacher", "admin", "president", "vice_president"]).optional(),

@@ -1,8 +1,8 @@
-import { requireUser } from "../../../server/lib/auth.js";
-import { db } from "../../../server/lib/db.js";
-import { methods, uuidParam } from "../../../server/lib/http.js";
-import { syncEnrollments } from "../../../server/lib/academics.js";
-import { listOfferings, setOfferingDeleted } from "../../../server/lib/offerings.js";
+import { requireUser } from "../../../lib/auth.js";
+import { db } from "../../../lib/db.js";
+import { methods, uuidParam } from "../../../lib/http.js";
+import { syncEnrollments } from "../../../lib/academics.js";
+import { listOfferings, setOfferingDeleted } from "../../../lib/offerings.js";
 
 // POST /api/offerings/:id/restore: bring an archived offering back.
 export default methods({

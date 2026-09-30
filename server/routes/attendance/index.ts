@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { can, requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { HttpError, methods, queryParam } from "../../server/lib/http.js";
-import { AttendanceSave, listAttendance, roster, saveAttendance } from "../../server/lib/attendance.js";
+import { can, requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { HttpError, methods, queryParam } from "../../lib/http.js";
+import { AttendanceSave, listAttendance, roster, saveAttendance } from "../../lib/attendance.js";
 
 const Query = z.object({
   offeringId: z.uuid().optional(),

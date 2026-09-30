@@ -1,8 +1,8 @@
-import { requireUser, can } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { HttpError, methods, uuidParam } from "../../server/lib/http.js";
-import { syncEnrollments } from "../../server/lib/academics.js";
-import { listOfferings, OfferingInput, setOfferingDeleted, updateOffering } from "../../server/lib/offerings.js";
+import { requireUser, can } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { HttpError, methods, uuidParam } from "../../lib/http.js";
+import { syncEnrollments } from "../../lib/academics.js";
+import { listOfferings, OfferingInput, setOfferingDeleted, updateOffering } from "../../lib/offerings.js";
 
 // GET    /api/offerings/:id
 // PATCH  /api/offerings/:id: partial update, then enroll matching students.

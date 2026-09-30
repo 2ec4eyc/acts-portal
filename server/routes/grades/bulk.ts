@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { methods } from "../../server/lib/http.js";
-import { GradeInput, writeGrades } from "../../server/lib/grades.js";
+import { requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { methods } from "../../lib/http.js";
+import { GradeInput, writeGrades } from "../../lib/grades.js";
 
 const Body = z.strictObject({ items: z.array(GradeInput).min(1).max(5000) });
 

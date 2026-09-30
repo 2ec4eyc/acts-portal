@@ -1,7 +1,7 @@
-import { db } from "../server/lib/db.js";
-import { requireUser } from "../server/lib/auth.js";
-import { HttpError, methods } from "../server/lib/http.js";
-import { applySelfUpdate, loadProfile, SelfProfileUpdate } from "../server/lib/profiles.js";
+import { db } from "../lib/db.js";
+import { requireUser } from "../lib/auth.js";
+import { HttpError, methods } from "../lib/http.js";
+import { applySelfUpdate, loadProfile, SelfProfileUpdate } from "../lib/profiles.js";
 
 // GET /api/me: the signed-in user's profile.
 // PATCH /api/me: update the user's own editable fields (partial; unknown fields are rejected).

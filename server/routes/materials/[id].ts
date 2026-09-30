@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { methods, uuidParam } from "../../server/lib/http.js";
-import { assertCanManage, getVisibleMaterial } from "../../server/lib/materials.js";
-import { materials } from "../../server/db/schema.js";
+import { requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { methods, uuidParam } from "../../lib/http.js";
+import { assertCanManage, getVisibleMaterial } from "../../lib/materials.js";
+import { materials } from "../../db/schema.js";
 
 const Patch = z.strictObject({ archived: z.boolean() });
 

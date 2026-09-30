@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { methods, queryParam } from "../../server/lib/http.js";
-import { getVisibleMaterial, listMaterials, MaterialUpload, uploadMaterial } from "../../server/lib/materials.js";
+import { requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { methods, queryParam } from "../../lib/http.js";
+import { getVisibleMaterial, listMaterials, MaterialUpload, uploadMaterial } from "../../lib/materials.js";
 
 const Query = z.object({
   category: z.enum(["notes", "exams", "activity"]).optional(),

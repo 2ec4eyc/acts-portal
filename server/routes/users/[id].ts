@@ -1,8 +1,8 @@
-import { can, requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { HttpError, methods, uuidParam } from "../../server/lib/http.js";
-import { loadProfile } from "../../server/lib/profiles.js";
-import { AccountUpdate, deleteAccount, getUserRow, updateAccount } from "../../server/lib/users.js";
+import { can, requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { HttpError, methods, uuidParam } from "../../lib/http.js";
+import { loadProfile } from "../../lib/profiles.js";
+import { AccountUpdate, deleteAccount, getUserRow, updateAccount } from "../../lib/users.js";
 
 // GET    /api/users/:id: one account (staff, or the user themself).
 // PATCH  /api/users/:id: edit an account. Executives may edit student accounts; staff accounts,

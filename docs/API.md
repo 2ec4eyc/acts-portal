@@ -1,6 +1,6 @@
 # ACTS Portal API
 
-Vercel Functions under `api/`, backed by PostgreSQL. Every endpoint except `/api/health` needs a Firebase ID token:
+One Vercel Function (`api/index.ts`) serves every endpoint: `vercel.json` rewrites `/api/<path>` to it, and it dispatches to the handlers in `server/routes/` (route table in `server/routes/index.ts`). One function keeps deployments within plan limits (Hobby allows 12) and shares one warm database pool. Backed by PostgreSQL. Every endpoint except `/api/health` needs a Firebase ID token:
 
 ```
 Authorization: Bearer <await auth.currentUser.getIdToken()>

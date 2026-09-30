@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { can, requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { HttpError, methods, queryParam } from "../../server/lib/http.js";
-import { assertCanGrade, GradeInput, listGrades, writeGrade } from "../../server/lib/grades.js";
+import { can, requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { HttpError, methods, queryParam } from "../../lib/http.js";
+import { assertCanGrade, GradeInput, listGrades, writeGrade } from "../../lib/grades.js";
 
 const Filter = z.object({ studentId: z.uuid().optional(), offeringId: z.uuid().optional() })
   .refine((f) => f.studentId || f.offeringId, { message: "pass studentId or offeringId" });

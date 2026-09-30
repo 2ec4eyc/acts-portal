@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { methods } from "../../server/lib/http.js";
-import { setArchived } from "../../server/lib/users.js";
+import { requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { methods } from "../../lib/http.js";
+import { setArchived } from "../../lib/users.js";
 
 const Body = z.strictObject({ ids: z.array(z.uuid()).min(1).max(1000) });
 

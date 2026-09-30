@@ -1,7 +1,7 @@
-import { requireUser } from "../../../server/lib/auth.js";
-import { db } from "../../../server/lib/db.js";
-import { methods, uuidParam } from "../../../server/lib/http.js";
-import { fileContent, getVisibleMaterial } from "../../../server/lib/materials.js";
+import { requireUser } from "../../../lib/auth.js";
+import { db } from "../../../lib/db.js";
+import { methods, uuidParam } from "../../../lib/http.js";
+import { fileContent, getVisibleMaterial } from "../../../lib/materials.js";
 
 // GET /api/materials/:id/file: download the file (same visibility rules as the list).
 export default methods({

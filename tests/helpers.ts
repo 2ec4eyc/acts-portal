@@ -115,7 +115,7 @@ export async function setup(): Promise<Fixture> {
   };
 }
 
-/** Imports an API route's default handler, e.g. route("offerings/[id]"). */
+/** Imports a route's handler from server/routes, e.g. route("offerings/[id]"). */
 export async function route(name: string): Promise<Handler> {
-  return (await import(`../api/${name}.js`)).default as Handler;
+  return (await import(`../server/routes/${name}.js`)).default as Handler;
 }

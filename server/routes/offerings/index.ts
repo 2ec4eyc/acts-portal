@@ -1,8 +1,8 @@
-import { can, requireUser } from "../../server/lib/auth.js";
-import { db } from "../../server/lib/db.js";
-import { HttpError, methods, queryParam } from "../../server/lib/http.js";
-import { syncEnrollments } from "../../server/lib/academics.js";
-import { createOffering, listOfferings, OfferingInput } from "../../server/lib/offerings.js";
+import { can, requireUser } from "../../lib/auth.js";
+import { db } from "../../lib/db.js";
+import { HttpError, methods, queryParam } from "../../lib/http.js";
+import { syncEnrollments } from "../../lib/academics.js";
+import { createOffering, listOfferings, OfferingInput } from "../../lib/offerings.js";
 
 // GET  /api/offerings[?includeDeleted=true]: all course offerings (archived ones for admins only).
 // POST /api/offerings: create one, then enroll matching students.

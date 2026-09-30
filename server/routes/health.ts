@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { db } from "../server/lib/db.js";
-import { methods } from "../server/lib/http.js";
+import { db } from "../lib/db.js";
+import { methods } from "../lib/http.js";
 
 // GET /api/health: confirms the function runs and can reach the database.
 export default methods({
