@@ -13,15 +13,14 @@ export const Login = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
   const [loading, setLoading] = useState(false); 
   const [error, setError] = useState('');
   
-  // Load saved credentials on mount
+  // Load the remembered email on mount. Passwords are never stored: remove any saved by older versions.
   useEffect(() => {
+    localStorage.removeItem('acts_saved_password');
     const savedEmail = localStorage.getItem('acts_saved_email');
-    const savedPassword = localStorage.getItem('acts_saved_password');
     const savedRemember = localStorage.getItem('acts_remember_me') === 'true';
     
     if (savedRemember) {
       if (savedEmail) setEmail(savedEmail);
-      if (savedPassword) setPassword(savedPassword);
       setRememberMe(true);
     }
   }, []);
@@ -35,14 +34,12 @@ export const Login = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
       // The portal account (and role) is looked up by the API after sign-in; see App.tsx.
       await signInWithEmailAndPassword(auth, email, password); 
       
-      // Handle "Save Login" logic
+      // "Remember Email" keeps only the email address
       if (rememberMe) {
         localStorage.setItem('acts_saved_email', email);
-        localStorage.setItem('acts_saved_password', password);
         localStorage.setItem('acts_remember_me', 'true');
       } else {
         localStorage.removeItem('acts_saved_email');
-        localStorage.removeItem('acts_saved_password');
         localStorage.setItem('acts_remember_me', 'false');
       }
       
@@ -73,7 +70,7 @@ export const Login = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
                 />
                 <Check size={14} className={`absolute left-0.5 text-white transition-opacity pointer-events-none ${rememberMe ? 'opacity-100' : 'opacity-0'}`} />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary group-hover:text-fb-textPrimary transition-colors">Save Login</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary group-hover:text-fb-textPrimary transition-colors">Remember Email</span>
             </label>
           </div>
 
