@@ -243,6 +243,19 @@ interface UserProfile {
   archivedAt?: any;
 }
 
+// Profile fields a user may change on their own account. Keep in sync with
+// selfEditableFields() in firestore.rules.
+const PROFILE_SELF_EDITABLE_FIELDS = [
+  'firstName', 'middleName', 'lastName', 'photoURL',
+  'contactNumber', 'gender', 'birthDate',
+  'address', 'city', 'province', 'postalCode',
+  'church', 'pastorName',
+  'holyGhostBaptismDate', 'holyGhostBaptismLocation',
+  'waterBaptismDate', 'waterBaptismLocation',
+  'emergencyFirstName', 'emergencyLastName',
+  'emergencyRelationship', 'emergencyContactNumber',
+] as const;
+
 const toTitleCase = (str: string) => {
   if (!str) return '';
   return str.split(' ').map(word => 
@@ -2118,8 +2131,18 @@ const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
     e.preventDefault();
     setSaving(true);
     const fullName = `${formData.firstName || ''} ${formData.middleName || ''} ${formData.lastName || ''}`.replace(/\s+/g, ' ').trim();
+    // Only write fields the user may edit, so stale role/grades/status in formData
+    // never overwrite staff changes (and match the owner allow-list in firestore.rules).
+    const editableFields: readonly string[] = profile.role === 'admin'
+      ? [...PROFILE_SELF_EDITABLE_FIELDS, 'adminCategory']
+      : PROFILE_SELF_EDITABLE_FIELDS;
+    const updates: Record<string, unknown> = { fullName };
+    for (const key of editableFields) {
+      const value = formData[key as keyof UserProfile];
+      if (value !== undefined) updates[key] = value;
+    }
     try {
-      await updateDoc(doc(db, "users", profile.uid), { ...formData, fullName });
+      await updateDoc(doc(db, "users", profile.uid), updates);
       setSuccessMessage("Your profile has been updated and saved.");
       setIsEditing(false);
     } catch (err) {
