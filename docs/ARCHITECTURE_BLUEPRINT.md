@@ -135,7 +135,7 @@ For a small team on Vercel Functions, Drizzle's SQL-first style and small footpr
 
 ### 2.3 Schema (`db/schema.ts`)
 
-> **Implemented** in `server/db/schema.ts`, which is the source of truth. One change from the version below: personal details apply to staff too, so `student_profiles` became `user_profiles` (personal/church/emergency fields, for every user) plus `student_records` (student number, school type, cohort, year level).
+> **Implemented** in `server/db/schema.ts`, which is the source of truth; endpoints are listed in `docs/API.md`. Changes from the version below: uploaded files are stored in Postgres (`material_files`, max 800 KB) instead of Vercel Blob, so downloads go through the API's access checks and no extra service is needed; and personal details apply to staff too, so `student_profiles` became `user_profiles` (personal/church/emergency fields, for every user) plus `student_records` (student number, school type, cohort, year level).
 ```ts
 import { sql } from "drizzle-orm";
 import {

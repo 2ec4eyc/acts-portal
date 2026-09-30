@@ -19,7 +19,7 @@
     "migrate:export": "tsx scripts/migrate/export.ts",
     "migrate:load": "tsx scripts/migrate/load.ts",
     "migrate:verify": "tsx scripts/migrate/verify.ts",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.9",

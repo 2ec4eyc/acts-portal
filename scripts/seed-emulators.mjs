@@ -19,7 +19,8 @@ const people = [
   ['stu1', 'student@acts.test', 'student', { firstName: 'Sam', lastName: 'Student', studentId: 'S-001', yearLevel: '1st Year', firstYearSchoolYear: '2026-2027', batchName: 'Batch 2026-A', schoolType: 'Night School', contactNumber: '0917', church: 'Grace Church',
     grades: [{ id: 'c1', courseName: 'Old Testament Survey', gradeValue: 91, isIncomplete: false, dateReleased: '2026-09-15', yearLevel: '1st Year', semester: '1st Semester' },
              { id: 'c2', courseName: 'Hermeneutics', gradeValue: '', isIncomplete: true, dateReleased: '', yearLevel: '1st Year', semester: '1st Semester' }],
-    editHistory: [{ id: 'h1', editedBy: 'Ada Admin', action: 'Grade updated', timestamp: '2026-09-15T08:00:00.000Z', details: 'OT Survey: 91' }] }],
+    editHistory: [{ id: 'h1', editedBy: 'Ada Admin', action: 'Grade updated', timestamp: '2026-09-15T08:00:00.000Z', details: 'OT Survey: 91' },
+                  { id: 'h2', editedBy: 'Admin, Ada', action: 'Updated grade for Hermeneutics', timestamp: 'Wednesday, September 16, 2026 at 10:00 AM', details: 'Grade: Incomplete' }] }],
   ['stu2', 'student2@acts.test', 'student', { firstName: 'Rita', lastName: 'Reyes', studentId: 'S-002', yearLevel: '1st Year', firstYearSchoolYear: '2026-2027', batchName: 'Batch 2026-A', grades: [{ id: 'c1', courseName: 'Old Testament Survey', gradeValue: 85, isIncomplete: false, dateReleased: '2026-09-15' }] }],
 ];
 for (const [uid, email, role, extra] of people) {
@@ -35,5 +36,6 @@ await db.doc('attendance/c1_2026-09-07_stu1').set({ id: 'c1_2026-09-07_stu1', co
 await db.doc('attendance/c1_2026-09-07_stu2').set({ id: 'c1_2026-09-07_stu2', courseId: 'c1', date: '2026-09-07', studentId: 'stu2', status: 'absent', isExcused: true, notes: 'Sick', createdAt: '2026-09-07T20:00:00.000Z' });
 await db.doc('uploaded_files/f1').set({ id: 'f1', courseId: 'c1', courseName: 'Old Testament Survey', teacherName: 'Teacher, Tess', teacherUid: 'teach1', category: 'notes', fileName: 'week1.pdf', fileData: 'data:application/pdf;base64,JVBERi0=', fileType: 'application/pdf', createdAt: T('2026-09-01') });
 await db.doc('uploaded_files/f2').set({ id: 'f2', courseId: 'c1', courseName: 'Old Testament Survey', teacherName: 'Teacher, Tess', teacherUid: 'teach1', category: 'exams', fileName: 'midterm.pdf', fileData: 'data:application/pdf;base64,JVBERi0=', fileType: 'application/pdf', eventDate: '2026-10-12', instructions: 'Bring a pen', createdAt: T('2026-09-02') });
+await db.doc('uploaded_files/f3').set({ id: 'f3', courseId: 'c1', courseName: 'Old Testament Survey', teacherName: 'Teacher, Tess', teacherUid: 'teach1', category: 'activity', fileName: 'old-quiz.txt', fileData: 'data:text/plain;base64,T2xkIHF1aXo=', fileType: 'text/plain', eventDate: '2026-09-20', archived: true, createdAt: T('2026-09-03') });
 console.log('seeded');
 process.exit(0);

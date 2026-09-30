@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  pgTable, pgEnum, uuid, text, smallint, integer, boolean, date, time,
+  customType, pgTable, pgEnum, uuid, text, smallint, integer, boolean, date, time,
   timestamp, numeric, jsonb, bigserial, serial, primaryKey, unique, uniqueIndex, index, check,
 } from "drizzle-orm/pg-core";
 
@@ -204,6 +204,7 @@ export const attendanceRecords = pgTable("attendance_records", {
 ]);
 
 // ---------- Materials, settings, audit ----------
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 export const materials = pgTable("materials", {
   id: uuid("id").primaryKey().defaultRandom(),
   legacyId: text("legacy_id").unique(),
@@ -211,7 +212,6 @@ export const materials = pgTable("materials", {
   uploadedBy: uuid("uploaded_by").notNull().references(() => users.id, { onDelete: "restrict" }),
   category: materialCategory("category").notNull(),
   fileName: text("file_name").notNull(),
-  blobUrl: text("blob_url").notNull(),                     // Vercel Blob, not base64
   contentType: text("content_type"),
   sizeBytes: integer("size_bytes"),
   eventDate: date("event_date"),
@@ -220,6 +220,13 @@ export const materials = pgTable("materials", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("materials_offering_category_idx").on(t.offeringId, t.category)]);
+
+// File contents kept apart from `materials` so listing never loads file bytes.
+// Uploads are capped at 800 KB (as in the app), well within Postgres and Vercel request limits.
+export const materialFiles = pgTable("material_files", {
+  materialId: uuid("material_id").primaryKey().references(() => materials.id, { onDelete: "cascade" }),
+  content: bytea("content").notNull(),
+});
 
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),                           // e.g. "show_student_schedule"

@@ -27,7 +27,7 @@ Test logins (password `password123`): `admin@acts.test`, `president@acts.test`, 
 
 ### API and database (Phase 2, in progress)
 
-The API lives in `api/` (Vercel Functions) with shared server code in `server/`. It reads and writes PostgreSQL and checks the caller's Firebase login. The app doesn't use it yet; it switches over at the planned cutover.
+The API lives in `api/` (Vercel Functions, listed in `docs/API.md`) with shared server code in `server/`. It reads and writes PostgreSQL and checks the caller's Firebase login. The app doesn't use it yet; it switches over at the planned cutover.
 
 ```bash
 npm run db:local           # terminal 1: local PostgreSQL 17 on port 5433
