@@ -110,6 +110,22 @@ async function startServer() {
     }
   });
 
+  // Serve api/**/*.ts the way Vercel does (file-based routes, [param] segments), so local dev
+  // exercises the same handlers as production.
+  app.all("/api/{*route}", async (req, res) => {
+    const params: Record<string, string> = {};
+    const handler = await resolveApiRoute(req.path.replace(/^\/api\//, ""), params);
+    if (!handler) return res.status(404).json({ error: "Not found" });
+    // Express 5 recomputes req.query on each access; pin it so route params stick (as on Vercel).
+    Object.defineProperty(req, "query", { value: { ...req.query, ...params }, writable: true, configurable: true });
+    try {
+      await handler(req, res);
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) res.status(500).json({ error: "Internal error" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -128,6 +144,40 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+}
+
+type ApiHandler = (req: express.Request, res: express.Response) => unknown;
+
+// Maps "users/abc/grades" to api/users/[id]/grades.ts (or .../index.ts), collecting [param] values.
+async function resolveApiRoute(route: string, query: Record<string, string>): Promise<ApiHandler | null> {
+  const apiDir = path.join(__dirname, "api");
+  let dir = apiDir;
+  const segments = route.split("/").filter(Boolean);
+  for (const [i, segment] of segments.entries()) {
+    const last = i === segments.length - 1;
+    const entries = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+    const dynamic = (names: string[]) => names.find((n) => /^\[[^\]]+\]/.test(n));
+    if (last) {
+      const exact = entries.includes(`${segment}.ts`) ? `${segment}.ts`
+        : entries.includes(segment) && fs.existsSync(path.join(dir, segment, "index.ts")) ? path.join(segment, "index.ts")
+        : null;
+      const param = exact ? null : dynamic(entries.filter((n) => n.endsWith(".ts")));
+      const file = exact ?? param;
+      if (!file) return null;
+      if (param) query[param.slice(1, param.indexOf("]"))] = segment;
+      const mod = await import(path.join(dir, file));
+      return mod.default as ApiHandler;
+    }
+    if (entries.includes(segment) && fs.statSync(path.join(dir, segment)).isDirectory()) {
+      dir = path.join(dir, segment);
+    } else {
+      const param = dynamic(entries.filter((n) => fs.statSync(path.join(dir, n)).isDirectory()));
+      if (!param) return null;
+      query[param.slice(1, -1)] = segment;
+      dir = path.join(dir, param);
+    }
+  }
+  return null;
 }
 
 startServer();

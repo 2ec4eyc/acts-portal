@@ -4,3 +4,5 @@ dist/
 !.env.example
 migration-data/
 .playwright-cli/
+.local/
+.vercel/
