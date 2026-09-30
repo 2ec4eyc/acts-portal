@@ -73,7 +73,12 @@ const ts = (v?: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(
 const legacyTs = (v?: string) => ts(v) ?? ts(v?.replace(/^[A-Za-z]+, /, "").replace(" at ", " "));
 const blank = (v?: string) => (v && v.trim() ? v.trim() : null);
 
-export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-data") {
+export type TransformOptions = {
+  /** Only accounts (users, roles, personal details, student placement); academic records start empty. */
+  accountsOnly?: boolean;
+};
+
+export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-data", opts: TransformOptions = {}) {
   const problems: string[] = [];
   const read = <T>(name: string, schema: z.ZodType<T>): T[] => {
     let raw: unknown[];
@@ -95,12 +100,14 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
 
   const active = read("users", FsUser);
   const archived = read("archived_users", FsUser).map((u) => ({ ...u, status: "Archived" as const }));
-  const courseDocs = [
+  // In accounts-only mode the academic collections aren't read at all.
+  const academic = !opts.accountsOnly;
+  const courseDocs = academic ? [
     ...read("courses", FsCourse).map((c) => ({ ...c, trashed: false })),
     ...read("trash", FsCourse).map((c) => ({ ...c, trashed: true })),
-  ];
-  const attendance = read("attendance", FsAttendance);
-  const files = read("uploaded_files", FsFile);
+  ] : [];
+  const attendance = academic ? read("attendance", FsAttendance) : [];
+  const files = academic ? read("uploaded_files", FsFile) : [];
 
   const out = {
     users: [] as Row<typeof s.users>[],
@@ -164,7 +171,7 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
       emergencyFirstName: blank(u.emergencyFirstName), emergencyLastName: blank(u.emergencyLastName),
       emergencyRelationship: blank(u.emergencyRelationship), emergencyContactNumber: blank(u.emergencyContactNumber),
     });
-    for (const [i, h] of u.editHistory.entries()) {
+    for (const [i, h] of (academic ? u.editHistory : []).entries()) {
       out.auditLog.push({
         action: "legacy.edit_history", entity: "user", entityId: id,
         data: h, at: legacyTs(h.timestamp) ?? new Date(0),
@@ -248,7 +255,7 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
   }
 
   // --- users[].grades[] -> enrollments + grades (a grade entry's id is the course doc id)
-  for (const u of people) {
+  for (const u of academic ? people : []) {
     if (u.role !== "student") continue;
     const studentId = userId.get(u.uid ?? u._id)!;
     const seen = new Set<string>();

@@ -1,6 +1,6 @@
 // Step 3: load the transformed rows into Postgres in ONE transaction.
 // Re-running is safe: rows have deterministic ids and inserts use ON CONFLICT DO NOTHING.
-// Usage: DATABASE_URL_UNPOOLED=... npx tsx scripts/migrate/load.ts
+// Usage: DATABASE_URL_UNPOOLED=... npx tsx scripts/migrate/load.ts [--accounts-only]
 import { eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -53,7 +53,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
   if (!connectionString) throw new Error("Set DATABASE_URL_UNPOOLED (direct connection) or DATABASE_URL");
   const pool = new Pool({ connectionString });
-  const t = transform();
+  const accountsOnly = process.argv.includes("--accounts-only");
+  if (accountsOnly) console.log("Accounts only: courses, grades, attendance and files start empty.");
+  const t = transform(undefined, { accountsOnly });
   console.log(t.problems.length ? `${t.problems.length} problem(s):\n  ${t.problems.join("\n  ")}` : "No problems.");
   await loadAll(drizzle(pool, { schema: s }), t);
   console.log(`Loaded ${t.users.length} users, ${t.offerings.length} offerings, ${t.enrollments.length} enrollments, ${t.grades.length} grades, ${t.records.length} attendance records, ${t.materials.length} files.`);

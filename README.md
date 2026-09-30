@@ -40,7 +40,7 @@ Schema changes: edit `server/db/schema.ts`, run `npm run db:generate -- --name <
 
 ### Moving data from Firebase
 
-`npm run migrate:export` (Firestore to `migration-data/`), then `migrate:load` and `migrate:verify` against the target database. See the cutover runbook in `docs/ARCHITECTURE_BLUEPRINT.md` §2.4. `migration-data/` holds personal data and is git-ignored.
+`npm run migrate:export` (Firestore to `migration-data/`), then `migrate:load` and `migrate:verify` against the target database. Add `-- --accounts-only` to all three to carry over only the accounts (logins, roles, profiles, student placement) and start with no courses, grades, attendance or files. See the cutover runbook in `docs/ARCHITECTURE_BLUEPRINT.md` §2.4. `migration-data/` holds personal data and is git-ignored.
 
 ## Scripts
 
