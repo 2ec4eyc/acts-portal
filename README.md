@@ -1,20 +1,50 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# ACTS Bible School Portal
 
-# Run and deploy your AI Studio app
+React + Vite single-page app backed by Firebase (Auth + Firestore), deployed on Vercel.
 
-This contains everything you need to run your app locally.
+## Run locally
 
-View your app in AI Studio: https://ai.studio/apps/b4d96854-a20f-42ed-b6c2-4927d2e920d5
+Prerequisites: Node.js 22.
 
-## Run Locally
+```bash
+npm install
+npm run dev          # http://localhost:3000, uses the real Firebase project
+```
 
-**Prerequisites:**  Node.js
+Firebase settings come from `VITE_FIREBASE_*` environment variables (see `.env.example`); without them the app falls back to the built-in `acts-bible-school-portal` config.
 
+### Against local emulators (no real data touched)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Requires Java 11+ for the Firestore emulator.
+
+```bash
+npm run emulators          # terminal 1: Auth + Firestore emulators with firestore.rules
+npm run seed:emulators     # terminal 2: test data, one account per role
+npm run dev:emulators      # terminal 2: app on http://localhost:3000
+```
+
+Test logins (password `password123`): `admin@acts.test`, `president@acts.test`, `teacher@acts.test`, `student@acts.test`.
+
+## Scripts
+
+| Script | Does |
+|---|---|
+| `npm run dev` | Dev server (Express + Vite middleware, `server.ts`) |
+| `npm run build` | Production build to `dist/` |
+| `npm run lint` | Type-check (`tsc --noEmit`) |
+| `npm run emulators` / `seed:emulators` / `dev:emulators` | Local emulator workflow above |
+
+## Project layout
+
+```
+src/
+  main.tsx            entry point
+  App.tsx             auth/session handling, sidebar, page routing
+  pages/              one component per sidebar page
+  components/         shared UI; components/modals/ for dialogs
+  lib/                firebase setup, formatting, GPA, image and error helpers
+  types.ts            shared data types
+  constants.ts
+firestore.rules       security rules (publish via Firebase console or `firebase deploy --only firestore:rules`)
+docs/ARCHITECTURE_BLUEPRINT.md   review and PostgreSQL/Vercel migration plan
+```
