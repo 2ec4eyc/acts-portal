@@ -1,0 +1,16 @@
+{
+  // Server code (Vercel Functions, migrations, tests) runs as plain Node ESM on Vercel, so it is
+  // checked with Node's module rules: relative imports need explicit .js extensions.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["api/**/*.ts", "server/**/*.ts", "scripts/migrate/**/*.ts", "tests/**/*.ts", "drizzle.config.ts"]
+}

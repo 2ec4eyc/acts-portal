@@ -134,6 +134,8 @@ For a small team on Vercel Functions, Drizzle's SQL-first style and small footpr
 | `settings` / AppSettings | `currentSchoolYear`, `publishCurrentGrades` | `terms.is_current` (unique partial index), `terms.grades_published`, `app_settings` (k/v) |
 
 ### 2.3 Schema (`db/schema.ts`)
+
+> **Implemented** in `server/db/schema.ts`, which is the source of truth. One change from the version below: personal details apply to staff too, so `student_profiles` became `user_profiles` (personal/church/emergency fields, for every user) plus `student_records` (student number, school type, cohort, year level).
 ```ts
 import { sql } from "drizzle-orm";
 import {
