@@ -51,6 +51,12 @@ const FsAttendance = z.object({
   _id: z.string(), courseId: z.string(), date: z.string(), studentId: z.string(),
   status: z.enum(["present", "absent"]), isExcused: z.boolean().optional(), notes: opt,
 });
+const FsFile = z.object({
+  _id: z.string(), courseId: z.string(), teacherUid: z.string(),
+  category: z.enum(["notes", "exams", "activity"]), fileName: z.string().trim().min(1),
+  fileData: z.string(), fileType: opt, eventDate: opt, eventTime: opt, instructions: opt,
+  archived: z.boolean().optional(), createdAt: opt,
+});
 type FsUser = z.infer<typeof FsUser>;
 
 const ROLE = { student: "student", admin: "admin", teacher: "teacher", president: "president", "vice president": "vice_president" } as const;
@@ -62,6 +68,9 @@ const WEEKDAY: Record<string, number> = { Sunday: 0, Monday: 1, Tuesday: 2, Wedn
 const yearLevel = (y: string) => (y === "2nd Year" ? 2 : 1);
 const semester = (sem: string) => Number(sem[0]);
 const ts = (v?: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v) : null);
+// The app stored edit-history times as display text, e.g. "Wednesday, September 30, 2026 at 10:00 AM"
+// (in the editor's local time, read here in the migration machine's time zone).
+const legacyTs = (v?: string) => ts(v) ?? ts(v?.replace(/^[A-Za-z]+, /, "").replace(" at ", " "));
 const blank = (v?: string) => (v && v.trim() ? v.trim() : null);
 
 export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-data") {
@@ -91,6 +100,7 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     ...read("trash", FsCourse).map((c) => ({ ...c, trashed: true })),
   ];
   const attendance = read("attendance", FsAttendance);
+  const files = read("uploaded_files", FsFile);
 
   const out = {
     users: [] as Row<typeof s.users>[],
@@ -108,6 +118,8 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     sessions: new Map<string, Row<typeof s.attendanceSessions>>(),
     records: [] as Row<typeof s.attendanceRecords>[],
     auditLog: [] as Row<typeof s.auditLog>[],
+    materials: [] as Row<typeof s.materials>[],
+    materialFiles: [] as Row<typeof s.materialFiles>[],
     problems,
   };
   const schoolYearId = (label: string) => {
@@ -155,9 +167,9 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     for (const [i, h] of u.editHistory.entries()) {
       out.auditLog.push({
         action: "legacy.edit_history", entity: "user", entityId: id,
-        data: h, at: ts(h.timestamp) ?? new Date(0),
+        data: h, at: legacyTs(h.timestamp) ?? new Date(0),
       });
-      if (!h.timestamp) problems.push(`${where}.editHistory[${i}]: no timestamp`);
+      if (!legacyTs(h.timestamp)) problems.push(`${where}.editHistory[${i}]: unreadable timestamp "${h.timestamp ?? ""}"`);
     }
     if (u.role !== "student") continue;
     const cohortName = blank(u.batchName);
@@ -257,11 +269,27 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     out.records.push({ sessionId, studentId: student, status: a.status, isExcused: a.isExcused ?? false, notes: blank(a.notes) });
   }
 
-  // Uploaded files move to Vercel Blob in a later step (they need the Blob store).
-  try {
-    const files = JSON.parse(readFileSync(`${dir}/uploaded_files.json`, "utf8")) as unknown[];
-    if (files.length) problems.push(`uploaded_files: ${files.length} file(s) not migrated yet (Blob upload step)`);
-  } catch { /* reported above */ }
+  // --- uploaded_files (base64 data URLs) -> materials + material_files
+  for (const file of files) {
+    const off = offeringId.get(file.courseId), uploader = userId.get(file.teacherUid);
+    if (!off || !uploader) { problems.push(`uploaded_files/${file._id}: unknown course or uploader (skipped)`); continue; }
+    const match = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(file.fileData);
+    if (!match || !match[2]) { problems.push(`uploaded_files/${file._id}: file data is not a base64 data URL (skipped)`); continue; }
+    const content = Buffer.from(match[3], "base64");
+    const id = legacyUuid("material", file._id);
+    const time = blank(file.eventTime);
+    out.materials.push({
+      id, legacyId: file._id, offeringId: off, uploadedBy: uploader, category: file.category,
+      fileName: file.fileName, contentType: blank(file.fileType) ?? (match[1] || "application/octet-stream"),
+      sizeBytes: content.length,
+      eventDate: isoDate(file.eventDate, `uploaded_files/${file._id}.eventDate`),
+      eventTime: time && /^([01]\d|2[0-3]):[0-5]\d/.test(time) ? time.slice(0, 5) : null,
+      instructions: blank(file.instructions),
+      archivedAt: file.archived ? new Date(0) : null,
+      ...(ts(file.createdAt) ? { createdAt: ts(file.createdAt)! } : {}),
+    });
+    out.materialFiles.push({ materialId: id, content });
+  }
 
   return out;
 }

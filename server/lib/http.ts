@@ -31,3 +31,18 @@ export function methods(handlers: Partial<Record<Method, Handler>>) {
     }
   };
 }
+
+/** Reads a route parameter (e.g. [id]) that must be a UUID. */
+export function uuidParam(req: VercelRequest, name = "id"): string {
+  const value = req.query[name];
+  if (typeof value !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    throw new HttpError(404, "Not found");
+  }
+  return value;
+}
+
+/** Reads an optional single query-string value. */
+export function queryParam(req: VercelRequest, name: string): string | undefined {
+  const value = req.query[name];
+  return typeof value === "string" && value !== "" ? value : undefined;
+}

@@ -10,7 +10,7 @@ import { transform, type Transformed } from "./transform.js";
 type Tables = typeof s.users | typeof s.userProfiles | typeof s.studentRecords | typeof s.studentYearLevels
   | typeof s.schoolYears | typeof s.terms | typeof s.cohorts | typeof s.courses | typeof s.courseOfferings
   | typeof s.offeringMeetings | typeof s.enrollments | typeof s.grades | typeof s.attendanceSessions
-  | typeof s.attendanceRecords | typeof s.auditLog;
+  | typeof s.attendanceRecords | typeof s.auditLog | typeof s.materials | typeof s.materialFiles;
 
 export async function loadAll(db: NodePgDatabase<typeof s>, t: Transformed) {
   const blocking = t.problems.filter((p) => p.startsWith("BLOCKING"));
@@ -37,6 +37,8 @@ export async function loadAll(db: NodePgDatabase<typeof s>, t: Transformed) {
     await insert(s.grades, t.grades);
     await insert(s.attendanceSessions, [...t.sessions.values()]);
     await insert(s.attendanceRecords, t.records);
+    await insert(s.materials, t.materials);
+    for (const file of t.materialFiles) await insert(s.materialFiles, [file]); // one at a time: files can be large
     // Audit rows have no natural key: replace the legacy ones wholesale.
     await tx.delete(s.auditLog).where(eq(s.auditLog.action, "legacy.edit_history"));
     await insert(s.auditLog, t.auditLog);
@@ -54,6 +56,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const t = transform();
   console.log(t.problems.length ? `${t.problems.length} problem(s):\n  ${t.problems.join("\n  ")}` : "No problems.");
   await loadAll(drizzle(pool, { schema: s }), t);
-  console.log(`Loaded ${t.users.length} users, ${t.offerings.length} offerings, ${t.enrollments.length} enrollments, ${t.grades.length} grades, ${t.records.length} attendance records.`);
+  console.log(`Loaded ${t.users.length} users, ${t.offerings.length} offerings, ${t.enrollments.length} enrollments, ${t.grades.length} grades, ${t.records.length} attendance records, ${t.materials.length} files.`);
   await pool.end();
 }

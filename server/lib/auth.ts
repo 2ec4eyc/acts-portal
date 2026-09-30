@@ -32,7 +32,9 @@ export type User = typeof users.$inferSelect;
 export type Role = User["role"];
 
 export type Permission =
-  | "users:read" | "users:write" | "users:change_role"
+  // users:write = edit student accounts; users:admin = everything else about accounts
+  // (staff accounts, roles, emails, create, archive, restore, delete).
+  | "users:read" | "users:write" | "users:admin"
   | "grades:write_own_offerings" | "grades:write_any"
   | "attendance:write" | "offerings:write" | "materials:write_own";
 
@@ -41,9 +43,12 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
   teacher: ["users:read", "grades:write_own_offerings", "materials:write_own"],
   president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
   vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
-  admin: ["users:read", "users:write", "users:change_role", "grades:write_own_offerings", "grades:write_any",
+  admin: ["users:read", "users:write", "users:admin", "grades:write_own_offerings", "grades:write_any",
           "attendance:write", "offerings:write", "materials:write_own"],
 };
+
+/** Firebase Admin Auth for this API (account creation, email changes, deletion). */
+export const firebaseAuth = () => getAuth(app);
 
 export const can = (user: Pick<User, "role">, permission: Permission) => PERMISSIONS[user.role].includes(permission);
 

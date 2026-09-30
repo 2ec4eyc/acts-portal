@@ -27,7 +27,7 @@ Test logins (password `password123`): `admin@acts.test`, `president@acts.test`, 
 
 ### API and database (Phase 2, in progress)
 
-The API lives in `api/` (Vercel Functions) with shared server code in `server/`. It reads and writes PostgreSQL and checks the caller's Firebase login. The app doesn't use it yet; it switches over at the planned cutover.
+The API is one Vercel Function (`api/index.ts`) dispatching to route handlers in `server/routes/` (listed in `docs/API.md`), with shared server code in `server/lib/` and `server/db/`. It reads and writes PostgreSQL and checks the caller's Firebase login. The app doesn't use it yet; it switches over at the planned cutover.
 
 ```bash
 npm run db:local           # terminal 1: local PostgreSQL 17 on port 5433
@@ -68,8 +68,8 @@ src/
   lib/                firebase setup, formatting, GPA, image and error helpers
   types.ts            shared data types
   constants.ts
-api/                  Vercel Functions (HTTP API)
-server/               API code shared by the functions: db/ (schema, migrations), lib/ (auth, db, profiles)
+api/index.ts          the single Vercel Function for /api/*
+server/               routes/ (API handlers + route table), lib/ (auth, db, services), db/ (schema, migrations)
 scripts/migrate/      Firebase to Postgres export, transform, load, verify
 tests/                API integration tests
 firestore.rules       security rules (publish via Firebase console or `firebase deploy --only firestore:rules`)

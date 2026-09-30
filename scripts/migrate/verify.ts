@@ -22,6 +22,9 @@ check("course offerings", t.offerings.length, await count("course_offerings"));
 check("enrollments", t.enrollments.length, await count("enrollments"));
 check("grades", t.grades.length, await count("grades"));
 check("attendance records", t.records.length, await count("attendance_records"));
+check("files", t.materials.length, await count("materials"));
+check("file bytes", t.materialFiles.reduce((n, f) => n + f.content.length, 0),
+  Number((await pool.query("SELECT coalesce(sum(length(content)), 0) AS n FROM material_files")).rows[0].n));
 
 // Per-student checksum of (offering, grade value, incomplete) must match exactly.
 const digest = (rows: string[]) => createHash("sha256").update(rows.sort().join("\n")).digest("hex").slice(0, 16);
