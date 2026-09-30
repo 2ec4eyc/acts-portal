@@ -2,23 +2,25 @@ import { z } from "zod";
 import { requireUser } from "../../lib/auth.js";
 import { db } from "../../lib/db.js";
 import { methods, queryParam } from "../../lib/http.js";
-import { listProfiles, loadProfile } from "../../lib/profiles.js";
+import { listProfiles, listProfilesWithGrades, loadProfile } from "../../lib/profiles.js";
 import { AccountCreate, createAccount } from "../../lib/users.js";
 
 const ListQuery = z.object({
   role: z.enum(["student", "teacher", "admin", "president", "vice_president"]).optional(),
   status: z.enum(["current", "archived", "all"]).default("current"),
+  include: z.enum(["grades"]).optional(),
 });
 
-// GET  /api/users[?role=student][&status=current|archived|all]: accounts (staff only).
+// GET  /api/users[?role=student][&status=current|archived|all][&include=grades]: accounts (staff only).
 // POST /api/users: create a login and account (admins only).
 export default methods({
   GET: async (req, res) => {
     await requireUser(req, "users:read");
-    const q = ListQuery.parse({ role: queryParam(req, "role"), status: queryParam(req, "status") });
+    const q = ListQuery.parse({ role: queryParam(req, "role"), status: queryParam(req, "status"), include: queryParam(req, "include") });
     const statuses = q.status === "current" ? ["active", "pending"] as const
       : q.status === "archived" ? ["archived"] as const : undefined;
-    res.status(200).json(await listProfiles(db, { role: q.role, statuses: statuses ? [...statuses] : undefined }));
+    const filter = { role: q.role, statuses: statuses ? [...statuses] : undefined };
+    res.status(200).json(q.include === "grades" ? await listProfilesWithGrades(db, filter) : await listProfiles(db, filter));
   },
   POST: async (req, res) => {
     await requireUser(req, "users:admin");

@@ -24,11 +24,11 @@ export type Result = { status: number; body: any; headers: Record<string, string
 /** Calls a Vercel-style handler with a minimal request/response pair. */
 export async function call(
   handler: Handler,
-  opts: { method?: string; token?: string; body?: unknown; query?: Record<string, string> } = {},
+  opts: { method?: string; token?: string; body?: unknown; query?: Record<string, string>; headers?: Record<string, string> } = {},
 ): Promise<Result> {
   const req = {
     method: opts.method ?? "GET",
-    headers: opts.token ? { authorization: `Bearer ${opts.token}` } : {},
+    headers: { ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}), ...opts.headers },
     body: opts.body,
     query: opts.query ?? {},
   } as unknown as VercelRequest;

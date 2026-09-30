@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
 
 import { CourseCalendar } from '../components/CourseCalendar';
 import { CalendarDayModal } from '../components/modals/CalendarDayModal';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { fetchCourses } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
 
@@ -18,12 +17,11 @@ export const StudentCalendarView = ({ profile }: { profile: UserProfile }) => {
   const enrolledIdsStr = JSON.stringify(profile.grades?.map(g => g.id) || []);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
+    return live(fetchCourses, (all) => {
       const list: Course[] = [];
       const enrolledIds = profile.grades?.map(g => g.id) || [];
       
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Course;
+      all.forEach(data => {
         // Only show active courses for the student's year level AND matching school year, or based on student enrollment
         let shouldInclude = false;
         if (profile.role === 'teacher') {
@@ -31,23 +29,21 @@ export const StudentCalendarView = ({ profile }: { profile: UserProfile }) => {
         } else if (profile.role === 'president' || profile.role === 'vice president' || profile.role === 'admin') {
           shouldInclude = true;
         } else if (profile.role === 'student') {
-          shouldInclude = enrolledIds.includes(docSnap.id);
+          shouldInclude = enrolledIds.includes(data.id);
         } else {
           const relevantYear = profile.yearLevel === '1st Year' ? profile.firstYearSchoolYear : profile.secondYearSchoolYear;
           shouldInclude = data.yearLevel === profile.yearLevel && data.schoolYear === relevantYear;
         }
         
         if (shouldInclude && data.status !== 'archived') {
-          list.push({ ...data, id: docSnap.id });
+          list.push(data);
         }
       });
       setCourses(list);
       setLoading(false);
     }, (error) => {
       setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, "courses");
     });
-    return () => unsub();
   }, [profile.yearLevel, profile.firstYearSchoolYear, profile.secondYearSchoolYear, enrolledIdsStr]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><RefreshCw className="animate-spin text-fb-blue" size={32} /></div>;

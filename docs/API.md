@@ -27,10 +27,11 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/health` | No auth. Checks the database. |
-| GET, PATCH | `/api/me` | Own profile. PATCH: only self-editable fields. |
-| GET | `/api/users?role=&status=current\|archived\|all` | Account list with profile and student record. |
+| GET, PATCH | `/api/me[?include=grades]` | Own profile (optionally with grades). PATCH: only self-editable fields. |
+| POST, DELETE | `/api/me/session` | POST `{ sessionId }` on sign-in makes this browser the account's only active session; requests carrying an older `X-Session-Id` get 401 `Session replaced`. DELETE on sign-out. |
+| GET | `/api/users?role=&status=current\|archived\|all&include=grades` | Account list with profile and student record (and grades). |
 | POST | `/api/users` | Create login + account (`email`, `password`, `firstName`, `lastName`, `role`, profile fields, `student: {...}`). Students are enrolled automatically. |
-| GET, PATCH, DELETE | `/api/users/:id` | PATCH may include `email` (changes the Firebase login, same uid), `role`, `status`, `student`. DELETE: archived accounts only. |
+| GET, PATCH, DELETE | `/api/users/:id[?include=grades]` | PATCH may include `email` (changes the Firebase login, same uid), `role`, `status`, `student`. DELETE: archived accounts only. |
 | GET | `/api/users/:id/history` | Grade changes and migrated edit history, newest first. |
 | POST | `/api/users/archive`, `/api/users/restore` | `{ ids }` |
 | POST | `/api/users/enroll` | `{ studentIds, yearLevel, cohort, schoolYear }`, then enrolls in matching offerings. |

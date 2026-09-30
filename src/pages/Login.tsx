@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 
 import { ActsLogo } from '../components/ActsLogo';
 import { FormField } from '../components/FormField';
-import { HIDDEN_ADMIN_EMAILS } from '../constants';
-import { auth, db } from '../lib/firebase';
-import type { UserProfile } from '../types';
+import { auth } from '../lib/firebase';
 
 export const Login = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
   const [email, setEmail] = useState(''); 
@@ -35,35 +32,8 @@ export const Login = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
     setError('');
     try { 
       await setPersistence(auth, browserSessionPersistence);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password); 
-      const user = userCredential.user;
-
-      // Check if Firestore profile exists
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const archivedDoc = await getDoc(doc(db, "archived_users", user.uid));
-
-      if (!userDoc.exists() && !archivedDoc.exists()) {
-        // Create default profile if missing
-        const isHiddenAdmin = HIDDEN_ADMIN_EMAILS.includes(user.email || '');
-        const defaultProfile: UserProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          fullName: user.email?.split('@')[0] || 'New User',
-          firstName: user.email?.split('@')[0] || 'New',
-          lastName: 'User',
-          role: isHiddenAdmin ? 'admin' : 'student',
-          status: 'Active',
-          grades: []
-        };
-        await setDoc(doc(db, "users", user.uid), defaultProfile);
-        console.log("Auto-created missing Firestore profile for:", user.email);
-      } else if (userDoc.exists()) {
-        // Ensure hidden admins have the admin role
-        const profileData = userDoc.data() as UserProfile;
-        if (HIDDEN_ADMIN_EMAILS.includes(user.email || '') && profileData.role !== 'admin') {
-          await updateDoc(doc(db, "users", user.uid), { role: 'admin' });
-        }
-      }
+      // The portal account (and role) is looked up by the API after sign-in; see App.tsx.
+      await signInWithEmailAndPassword(auth, email, password); 
       
       // Handle "Save Login" logic
       if (rememberMe) {

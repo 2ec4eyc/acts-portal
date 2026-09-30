@@ -17,21 +17,6 @@ import {
   ArrowDown,
   Database,
 } from 'lucide-react';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
-import {
-  doc,
-  setDoc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-  Timestamp,
-  deleteDoc,
-  getDoc,
-  getDocs,
-} from 'firebase/firestore';
 
 import { Card } from '../components/Card';
 import { CleanUpRecordsModal } from '../components/modals/CleanUpRecordsModal';
@@ -42,10 +27,11 @@ import { PasswordResetModal } from '../components/modals/PasswordResetModal';
 import { SuccessModal } from '../components/modals/SuccessModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
 import { HIDDEN_ADMIN_EMAILS } from '../constants';
-import { db, firebaseConfig } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { ApiError } from '../lib/api';
+import { archiveAccounts, createAccount, enrollStudents, fetchUsers, restoreAccounts, updateAccount } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
-import type { Course, UserProfile } from '../types';
+import type { UserProfile } from '../types';
 
 export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
   const [allUsers, setAllUsers] = useState([] as UserProfile[]);
@@ -80,147 +66,51 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
   }, [search, roleFilter, yearLevelFilter, isViewArchive]);
 
   useEffect(() => {
-    const unsubActive = onSnapshot(collection(db, "users"), (snapshot) => {
-      const usersData = [] as UserProfile[];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as UserProfile;
-        if (data && (data.email || formatName(data))) {
-          usersData.push({ ...data, uid: docSnap.id });
-        }
-      });
-      setAllUsers(usersData);
+    const keep = (list: UserProfile[]) => list.filter((data) => data && (data.email || formatName(data)));
+    const stopActive = live(() => fetchUsers({ status: 'current' }), (usersData) => {
+      setAllUsers(keep(usersData));
       setPermissionError(false);
     }, (error) => {
-      if (error.code === 'permission-denied') {
+      if (error instanceof ApiError && error.status === 403) {
         console.warn("Permission denied for active user list.");
         setPermissionError(true);
       }
-      handleFirestoreError(error, OperationType.LIST, "users");
     });
-
-    const unsubArchived = onSnapshot(collection(db, "archived_users"), (snapshot) => {
-      const archivedData = [] as UserProfile[];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as UserProfile;
-        if (data && (data.email || formatName(data))) {
-          archivedData.push({ ...data, uid: docSnap.id });
-        }
-      });
-      setArchivedUsers(archivedData);
+    const stopArchived = live(() => fetchUsers({ status: 'archived' }), (archivedData) => {
+      setArchivedUsers(keep(archivedData));
     }, (error) => {
-      console.warn("Archived Users collection check:", error.message);
-      handleFirestoreError(error, OperationType.LIST, "archived_users");
+      console.warn("Archived Users collection check:", (error as Error).message);
     });
-
-    return () => { unsubActive(); unsubArchived(); };
+    return () => { stopActive(); stopArchived(); };
   }, []);
 
-  const syncStudentToCourses = async (uid: string, profile: UserProfile) => {
-    if (profile.role !== 'student') return;
-    
-    let sy = "";
-    if (profile.yearLevel === '1st Year') sy = profile.firstYearSchoolYear || "";
-    else if (profile.yearLevel === '2nd Year') sy = profile.secondYearSchoolYear || "";
-    
-    if (!sy || !profile.yearLevel) return;
-
-    try {
-      const q = query(
-        collection(db, "courses"),
-        where("yearLevel", "==", profile.yearLevel),
-        where("schoolYear", "==", sy)
-      );
-      const snap = await getDocs(q);
-      
-      // Get fresh data to avoid stale state
-      const freshDoc = await getDoc(doc(db, "users", uid));
-      if (!freshDoc.exists()) return;
-      const freshData = freshDoc.data() as UserProfile;
-      
-      const existingGrades = freshData.grades || [];
-      let updated = false;
-      const newGrades = [...existingGrades];
-
-      snap.docs.forEach(courseDoc => {
-        const course = courseDoc.data() as Course;
-        const hasCourse = existingGrades.some(g => g.id === courseDoc.id);
-        if (!hasCourse) {
-          newGrades.push({
-            id: courseDoc.id,
-            courseName: course.name,
-            gradeValue: '',
-            isIncomplete: false,
-            dateReleased: new Date().toISOString().split('T')[0],
-            yearLevel: course.yearLevel as any,
-            semester: course.semester as any
-          });
-          updated = true;
-        }
-      });
-
-      if (updated) {
-        await updateDoc(doc(db, "users", uid), { grades: newGrades });
-      }
-    } catch (err) {
-      console.error("Error syncing student to courses:", err);
-    }
-  };
+  // Enrollment into matching courses now happens on the server whenever an account changes.
 
   const handleSaveUser = async (updatedFields: Partial<UserProfile>) => {
     if (!editingUser) return;
-    const coll = isViewArchive ? "archived_users" : "users";
-    
-    if (updatedFields.email && updatedFields.email !== editingUser.email) {
-      const newEmail = updatedFields.email;
-      const tempPassword = Math.random().toString(36).slice(-8) + "A1!";
-      
-      try {
-        const secondaryApp = initializeApp(firebaseConfig, "secondary-email-update-" + Date.now());
-        const secondaryAuth = getAuth(secondaryApp);
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newEmail, tempPassword);
-        const newUid = userCredential.user.uid;
-        
-        await signOut(secondaryAuth);
-        await deleteApp(secondaryApp);
-
-        const newProfileData = {
-          ...editingUser,
-          ...updatedFields,
-          uid: newUid,
-          email: newEmail,
-        };
-        
-        await setDoc(doc(db, coll, newUid), newProfileData);
-        await deleteDoc(doc(db, coll, editingUser.uid));
-        
-        // Sync courses if student
-        if (newProfileData.role === 'student') {
-          await syncStudentToCourses(newUid, newProfileData as UserProfile);
-        }
-        
-        setSuccessMsg(`Email updated successfully The new temporary password for ${newEmail} is:\n\n${tempPassword}\n\nPlease provide this to the user. They can no longer log in with their old email.`);
-        setEditingUser(null);
-      } catch (err: any) {
-        if (err.code === 'auth/email-already-in-use') {
-          alert("Cannot update email: The email address is already in use by another account. Please use a different email address.");
-        } else {
-          alert("Failed to update email: " + err.message);
-        }
-        return;
+    // Send only what changed: unchanged role/email fields would otherwise need admin rights.
+    const same = (a: unknown, b: unknown) => (a ?? '') === (b ?? '');
+    const changes: Partial<UserProfile> = {};
+    for (const [key, value] of Object.entries(updatedFields)) {
+      if (['uid', 'fullName', 'grades', 'editHistory', 'archivedAt', 'currentSessionId', 'tempPassword'].includes(key)) continue;
+      if (!same(value, editingUser[key as keyof UserProfile])) (changes as Record<string, unknown>)[key] = value;
+    }
+    if (Object.keys(changes).length === 0) {
+      setEditingUser(null);
+      return;
+    }
+    try {
+      await updateAccount(editingUser.uid, changes);
+      if (changes.email) {
+        setSuccessMsg(`Email updated successfully. ${changes.email} now signs in with the same password as before; their records are unchanged.`);
+      } else {
+        alert("Updated successfully.");
       }
-    } else {
-      try { 
-        await updateDoc(doc(db, coll, editingUser.uid), updatedFields); 
-        
-        // Sync courses if student and relevant fields changed
-        if (editingUser.role === 'student') {
-          const freshProfile = { ...editingUser, ...updatedFields } as UserProfile;
-          await syncStudentToCourses(editingUser.uid, freshProfile);
-        }
-
-        alert("Updated successfully."); 
-        setEditingUser(null);
-      } catch (err: any) {
+      setEditingUser(null);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.status === 409 && changes.email) {
+        alert("Cannot update email: The email address is already in use by another account. Please use a different email address.");
+      } else {
         alert("Failed to update: " + err.message);
       }
     }
@@ -234,38 +124,11 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     }
 
     try {
-      const secondaryApp = initializeApp(firebaseConfig, "secondary-signup-" + Date.now());
-      const secondaryAuth = getAuth(secondaryApp);
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, tempPassword);
-      const uid = userCredential.user.uid;
-      
-      await signOut(secondaryAuth);
-      await deleteApp(secondaryApp);
-
-      const fullName = `${firstName} ${lastName}`.trim();
-      const profileData = {
-        ...otherData,
-        firstName,
-        lastName,
-        uid,
-        email,
-        role: role || 'student',
-        status: "Active",
-        grades: [],
-        fullName,
-        createdAt: Timestamp.now()
-      };
-      
-      await setDoc(doc(db, "users", uid), profileData);
-      
-      // Sync courses if student
-      if (profileData.role === 'student') {
-        await syncStudentToCourses(uid, profileData as UserProfile);
-      }
-
+      const { uid: _uid, fullName: _fullName, grades: _grades, ...fields } = otherData as Partial<UserProfile>;
+      await createAccount({ ...fields, email, firstName, lastName, role: role || 'student', tempPassword });
       setSuccessMsg(`Account created and registered successfully for ${email}`);
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
+      if (err instanceof ApiError && err.status === 409) {
         setErrorMsg("Cannot create account: The email address is already in use by another account. Please use a different email address.");
       } else {
         setErrorMsg(`Account creation failed: ${err.message}`);
@@ -277,18 +140,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     if (selectedToArchiveUsers.length === 0) return;
     setIsProcessing(true);
     try {
-      const promises = selectedToArchiveUsers.map(async (uid) => {
-        const user = allUsers.find(u => u.uid === uid);
-        if (user) {
-          await setDoc(doc(db, "archived_users", uid), {
-            ...user,
-            status: "Archived",
-            archivedAt: Timestamp.now()
-          });
-          await deleteDoc(doc(db, "users", uid));
-        }
-      });
-      await Promise.all(promises);
+      await archiveAccounts(selectedToArchiveUsers);
       setSelectedToArchiveUsers([]);
       alert("Selected accounts archived.");
     } catch (err: any) {
@@ -302,18 +154,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     if (selectedToRestoreUsers.length === 0) return;
     setIsProcessing(true);
     try {
-      const promises = selectedToRestoreUsers.map(async (uid) => {
-        const user = archivedUsers.find(u => u.uid === uid);
-        if (user) {
-          const { archivedAt, ...cleanData } = user as any;
-          await setDoc(doc(db, "users", uid), {
-            ...cleanData,
-            status: "Active"
-          });
-          await deleteDoc(doc(db, "archived_users", uid));
-        }
-      });
-      await Promise.all(promises);
+      await restoreAccounts(selectedToRestoreUsers);
       setSelectedToRestoreUsers([]);
       alert("Selected accounts restored.");
     } catch (err: any) {
@@ -331,28 +172,8 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
 
     setIsProcessing(true);
     try {
-      const promises = selectedToArchiveUsers.map(async (uid) => {
-        const user = allUsers.find(u => u.uid === uid);
-        if (user && user.role === 'student') {
-          const updatedFields: Partial<UserProfile> = {
-            yearLevel: yearLevel as any,
-            batchName: batchName,
-          };
-          if (yearLevel === '1st Year') {
-            updatedFields.firstYearSchoolYear = schoolYear;
-          } else if (yearLevel === '2nd Year') {
-            updatedFields.secondYearSchoolYear = schoolYear;
-          }
-          
-          await updateDoc(doc(db, "users", uid), updatedFields);
-          
-          // Sync courses
-          const freshProfile = { ...user, ...updatedFields } as UserProfile;
-          await syncStudentToCourses(uid, freshProfile);
-        }
-      });
-      
-      await Promise.all(promises);
+      const studentIds = selectedToArchiveUsers.filter((uid) => allUsers.find(u => u.uid === uid)?.role === 'student');
+      if (studentIds.length > 0) await enrollStudents(studentIds, yearLevel, batchName, schoolYear);
       setSelectedToArchiveUsers([]);
       setIsEnrolling(false);
       alert("Successfully enrolled selected students.");
@@ -549,7 +370,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                     {isViewArchive && (
                       <td className="py-4 px-6 text-center">
                         <span className="text-[10px] font-bold text-fb-textSecondary uppercase italic">
-                          {u.archivedAt ? (u.archivedAt instanceof Timestamp ? u.archivedAt.toDate() : new Date(u.archivedAt.seconds * 1000)).toLocaleDateString() : 'N/A'}
+                          {u.archivedAt ? new Date(u.archivedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                         </span>
                       </td>
                     )}
@@ -629,7 +450,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                 
                 {isViewArchive && (
                   <div className="text-[10px] font-bold text-fb-textSecondary uppercase italic">
-                    Archived: {u.archivedAt ? (u.archivedAt instanceof Timestamp ? u.archivedAt.toDate() : new Date(u.archivedAt.seconds * 1000)).toLocaleDateString() : 'N/A'}
+                    Archived: {u.archivedAt ? new Date(u.archivedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                   </div>
                 )}
 

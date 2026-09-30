@@ -199,6 +199,13 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
   }
 
   // --- courses + trash -> courses (catalog by name), course_offerings, offering_meetings
+  const nameKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
+  const staffByName = new Map<string, string>();
+  for (const u of out.users) {
+    if (u.role === "student") continue;
+    staffByName.set(nameKey(`${u.lastName}, ${u.firstName}`), u.id!);
+    staffByName.set(nameKey(`${u.firstName} ${u.lastName}`), u.id!);
+  }
   const offeringId = new Map<string, string>(); // firestore course id -> uuid
   for (const c of courseDocs) {
     if (offeringId.has(c._id)) { problems.push(`courses/${c._id}: in both courses and trash (kept the first)`); continue; }
@@ -208,16 +215,21 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     offeringId.set(c._id, id);
     const sy = blank(c.schoolYear);
     if (!sy) problems.push(`courses/${c._id}: no school year (assigned to "unknown")`);
-    let instructorId: string | null = null;
-    if (c.instructorId) {
-      instructorId = userId.get(c.instructorId) ?? null;
-      if (!instructorId) problems.push(`courses/${c._id}: instructor ${c.instructorId} not found`);
-    } else if (c.professor) {
-      problems.push(`courses/${c._id}: instructor only given by name "${c.professor}" (assign manually)`);
+    // Like the app: the instructor is the linked account, else a staff member whose "Last, First"
+    // (or "First Last") matches the typed name; otherwise the name is kept as display text.
+    let instructorId: string | null = c.instructorId ? userId.get(c.instructorId) ?? null : null;
+    let instructorLabel: string | null = null;
+    if (c.instructorId && !instructorId) problems.push(`courses/${c._id}: linked instructor ${c.instructorId} not found`);
+    if (!instructorId && blank(c.professor)) {
+      instructorId = staffByName.get(nameKey(c.professor!)) ?? null;
+      if (!instructorId) {
+        instructorLabel = c.professor!.trim();
+        problems.push(`courses/${c._id}: instructor "${instructorLabel}" has no account (shown as text; assign an account so they can grade)`);
+      }
     }
     out.offerings.push({
       id, legacyId: c._id, courseId: out.courses.get(key)!.id, termId: termId(sy ?? "unknown", semester(c.semester)),
-      yearLevel: yearLevel(c.yearLevel), instructorId,
+      yearLevel: yearLevel(c.yearLevel), instructorId, instructorLabel,
       deletedAt: c.trashed ? (ts(c.archivedAt) ?? new Date(0)) : null,
       ...(ts(c.createdAt) ? { createdAt: ts(c.createdAt)! } : {}),
     });

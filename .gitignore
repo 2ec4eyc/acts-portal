@@ -6,3 +6,4 @@ migration-data/
 .playwright-cli/
 .local/
 .vercel/
+*-debug.log

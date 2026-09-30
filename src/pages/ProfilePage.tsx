@@ -12,19 +12,13 @@ import {
   Camera,
   BookOpen,
 } from 'lucide-react';
-import {
-  doc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-} from 'firebase/firestore';
 
 import { FormField } from '../components/FormField';
 import { ChangePasswordModal } from '../components/modals/ChangePasswordModal';
 import { SuccessModal } from '../components/modals/SuccessModal';
 import { PROFILE_SELF_EDITABLE_FIELDS } from '../constants';
-import { db } from '../lib/firebase';
+import { fetchCourses, updateMyProfile } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import { getCroppedImg } from '../lib/image';
 import type { Course, UserProfile } from '../types';
@@ -52,22 +46,13 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
   useEffect(() => {
     if (profile && profile.role === 'teacher') {
       setCoursesLoading(true);
-      const q = query(collection(db, "courses"));
-      const unsub = onSnapshot(q, (snapshot) => {
-        const list: Course[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data() as Course;
-          if (data.status !== 'archived' && (data.instructorId === profile.uid || data.professor === formatName(profile))) {
-            list.push({ ...data, id: docSnap.id });
-          }
-        });
-        setAssignedCourses(list);
+      return live(fetchCourses, (courses) => {
+        setAssignedCourses(courses.filter((c) => c.instructorId === profile.uid || c.professor === formatName(profile)));
         setCoursesLoading(false);
       }, (error) => {
         console.error("Error loading assigned courses for teacher:", error);
         setCoursesLoading(false);
       });
-      return () => unsub();
     }
   }, [profile]);
 
@@ -114,8 +99,7 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
     e.preventDefault();
     setSaving(true);
     const fullName = `${formData.firstName || ''} ${formData.middleName || ''} ${formData.lastName || ''}`.replace(/\s+/g, ' ').trim();
-    // Only write fields the user may edit, so stale role/grades/status in formData
-    // never overwrite staff changes (and match the owner allow-list in firestore.rules).
+    // Only send fields the user may edit (the API rejects anything else).
     const editableFields: readonly string[] = profile.role === 'admin'
       ? [...PROFILE_SELF_EDITABLE_FIELDS, 'adminCategory']
       : PROFILE_SELF_EDITABLE_FIELDS;
@@ -125,7 +109,7 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
       if (value !== undefined) updates[key] = value;
     }
     try {
-      await updateDoc(doc(db, "users", profile.uid), updates);
+      await updateMyProfile(updates as Partial<UserProfile>);
       setSuccessMessage("Your profile has been updated and saved.");
       setIsEditing(false);
     } catch (err) {

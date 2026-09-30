@@ -9,14 +9,14 @@ import {
   ArrowDown,
   Database,
 } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { Card } from '../components/Card';
 import { BulkUploadModal } from '../components/modals/BulkUploadModal';
 import { GradesModal } from '../components/modals/GradesModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { ApiError } from '../lib/api';
+import { fetchUsers } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
 
@@ -34,25 +34,15 @@ export const SubmitGrades = ({ adminProfile }: { adminProfile: UserProfile }) =>
   };
 
   useEffect(() => {
-    const q = query(collection(db, "users"), where("role", "==", "student"));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = [] as UserProfile[];
-      snapshot.forEach((docSnap) => {
-        const item = docSnap.data() as UserProfile;
-        if (item && (formatName(item) || item.email)) {
-          data.push({ ...item, uid: docSnap.id });
-        }
-      });
-      setStudentData(data);
+    return live(() => fetchUsers({ role: 'student' }), (list) => {
+      setStudentData(list.filter((item) => item && (formatName(item) || item.email)));
       setPermissionError(false);
     }, (error) => {
-      if (error.code === 'permission-denied') {
+      if (error instanceof ApiError && error.status === 403) {
         console.warn("Permission denied for student database.");
         setPermissionError(true);
       }
-      handleFirestoreError(error, OperationType.LIST, "users");
     });
-    return () => unsub();
   }, []);
 
   if (permissionError) return <PermissionDeniedGate message="Insufficient permissions to load student database" />;

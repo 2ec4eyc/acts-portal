@@ -113,3 +113,44 @@ describe("routing", () => {
     assert.equal((await call(me, { method: "DELETE", token: tokens.admin })).status, 405);
   });
 });
+
+describe("include=grades", () => {
+  test("a student gets their grades with their profile", async () => {
+    const r = await call(me, { token: tokens.student, query: { include: "grades" } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.grades.map((g: any) => [g.courseName, g.value, g.status]).sort(),
+      [["Hermeneutics", null, "incomplete"], ["Old Testament Survey", 91, "passed"]]);
+  });
+  test("staff lists can include every student's grades in one call", async () => {
+    const users = await route("users/index");
+    const r = await call(users, { token: tokens.admin, query: { role: "student", include: "grades" } });
+    assert.deepEqual(r.body.map((u: any) => [u.lastName, u.grades.length]), [["Reyes", 1], ["Student", 2]]);
+  });
+});
+
+describe("single active session", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  let session: Handler;
+  test("a new sign-in replaces the previous session", async () => {
+    session = await route("me-session");
+    assert.equal((await call(session, { method: "POST", token: tokens.teacher, body: { sessionId: A } })).status, 204);
+    assert.equal((await call(me, { token: tokens.teacher, headers: { "x-session-id": A } })).status, 200);
+    // Signing in elsewhere claims the account, even though session A is active.
+    assert.equal((await call(session, { method: "POST", token: tokens.teacher, headers: { "x-session-id": B }, body: { sessionId: B } })).status, 204);
+    const old = await call(me, { token: tokens.teacher, headers: { "x-session-id": A } });
+    assert.equal(old.status, 401);
+    assert.equal(old.body.error, "Session replaced");
+    assert.equal((await call(me, { token: tokens.teacher, headers: { "x-session-id": B } })).status, 200);
+  });
+  test("signing out of an old session doesn't end the current one", async () => {
+    await call(session, { method: "DELETE", token: tokens.teacher, headers: { "x-session-id": A } });
+    assert.equal((await call(me, { token: tokens.teacher, headers: { "x-session-id": B } })).status, 200);
+    await call(session, { method: "DELETE", token: tokens.teacher, headers: { "x-session-id": B } });
+    assert.equal((await call(me, { token: tokens.teacher, headers: { "x-session-id": A } })).status, 200, "no active session any more");
+  });
+  test("requests without a session id are not affected (scripts, tests)", async () => {
+    await call(session, { method: "POST", token: tokens.teacher, body: { sessionId: A } });
+    assert.equal((await call(me, { token: tokens.teacher })).status, 200);
+  });
+});

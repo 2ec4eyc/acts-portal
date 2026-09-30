@@ -11,12 +11,11 @@ import {
   RotateCcw,
   Database,
 } from 'lucide-react';
-import { doc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 
-import { db } from '../../lib/firebase';
-import { OperationType, handleFirestoreError } from '../../lib/firestoreErrors';
+import { fetchCourses, setGradesBulk } from '../../lib/data';
+import { live } from '../../lib/live';
 import { formatName } from '../../lib/format';
-import type { Course, EditHistoryEntry, Grade, UserProfile } from '../../types';
+import type { Course, UserProfile } from '../../types';
 
 export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studentData: UserProfile[], adminProfile: UserProfile, onClose: () => void }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -50,16 +49,7 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
   }, []);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data(), id: docSnap.id } as Course);
-      });
-      setCourses(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "courses");
-    });
-    return () => unsub();
+    return live(fetchCourses, setCourses);
   }, []);
 
   const generateTemplate = () => {
@@ -140,7 +130,7 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
       }
 
       const rows = lines.slice(1);
-      const updates: Record<string, { grades: Grade[], history: EditHistoryEntry[] }> = {};
+      const updates: Record<string, Parameters<typeof setGradesBulk>[0][number]> = {};
 
       for (const row of rows) {
         const values: string[] = [];
@@ -163,10 +153,8 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
 
         const studentId = values[0];
         const studentName = values[1];
-        const yearLevel = values[2] as any;
-        const semester = values[3] as any;
+        // Columns 2, 3 and 5 (year level, semester, course name) are for the reader only.
         const courseId = values[4];
-        const courseName = values[5];
         const gradeStr = values[6];
         const gradeValue = gradeStr === '' ? '' : Number(gradeStr);
         const isIncomplete = values[7] ? values[7].toUpperCase() === 'TRUE' : false;
@@ -185,44 +173,17 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
         
         if (!student) continue;
 
-        if (!updates[student.uid]) {
-          updates[student.uid] = { 
-            grades: [...(student.grades || [])], 
-            history: [...(student.editHistory || [])] 
-          };
-        }
+        // Templates made before the move to PostgreSQL carry the old Firestore course ids.
+        const course = courses.find(c => c.id === courseId || c.legacyId === courseId);
+        if (!course) continue;
 
-        const existingGradeIndex = updates[student.uid].grades.findIndex(g => g.id === courseId);
-        const newGrade: Grade = {
-          id: courseId,
-          courseName: courseName,
+        // A later row for the same student and course wins, as before.
+        updates[`${student.uid}|${course.id}`] = {
+          studentUid: student.uid,
+          courseId: course.id,
           gradeValue: isIncomplete ? '' : gradeValue,
-          isIncomplete: isIncomplete,
-          dateReleased: new Date().toISOString().split('T')[0],
-          yearLevel,
-          semester
+          isIncomplete,
         };
-
-        if (existingGradeIndex > -1) {
-          updates[student.uid].grades[existingGradeIndex] = newGrade;
-        } else {
-          updates[student.uid].grades.push(newGrade);
-        }
-
-        updates[student.uid].history.push({
-          id: `HIST-${Date.now()}-${Math.random()}`,
-          editedBy: formatName(adminProfile) || adminProfile.email,
-          action: `Bulk Upload: Updated grade for ${courseName}`,
-          timestamp: new Date().toLocaleString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          details: `Grade: ${isIncomplete ? 'Incomplete' : gradeValue}`
-        });
       }
 
       if (Object.keys(updates).length === 0) {
@@ -232,13 +193,8 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
 
       setIsProcessing(true);
       try {
-        const promises = Object.entries(updates).map(([uid, data]) => 
-          updateDoc(doc(db, "users", uid), { 
-            grades: data.grades,
-            editHistory: data.history
-          })
-        );
-        await Promise.all(promises);
+        // All rows are saved together, or none are.
+        await setGradesBulk(Object.values(updates));
         alert("Bulk grades updated successfully.");
         onClose();
       } catch (err) {

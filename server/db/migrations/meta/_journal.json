@@ -15,6 +15,20 @@
       "when": 1790785732247,
       "tag": "0001_material_files",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790791693831,
+      "tag": "0002_current_session",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790791827814,
+      "tag": "0003_instructor_label",
+      "breakpoints": true
     }
   ]
 }

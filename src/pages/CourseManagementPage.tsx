@@ -23,28 +23,17 @@ import {
   BookOpen,
   Copy,
 } from 'lucide-react';
-import {
-  doc,
-  setDoc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-  Timestamp,
-  deleteDoc,
-  getDocs,
-} from 'firebase/firestore';
 
 import { Card } from '../components/Card';
 import { CourseCalendar } from '../components/CourseCalendar';
 import { FormField } from '../components/FormField';
 import { CalendarDayModal } from '../components/modals/CalendarDayModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { ApiError } from '../lib/api';
+import { archiveCourses, fetchCourses, fetchUsers, restoreCourses, saveCourse } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
-import type { Course, Grade, UserProfile } from '../types';
+import type { Course, UserProfile } from '../types';
 
 export const CourseManagementPage = ({ profile }: { profile: UserProfile | null }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -80,62 +69,35 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   useEffect(() => {
     if (!profileUid) return;
 
-    const unsubActive = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = []; 
-      snapshot.forEach(docSnap => list.push({ ...docSnap.data() as Course, id: docSnap.id }));
+    const stopActive = live(fetchCourses, (list) => {
       setCourses(list);
       setPermissionError(false);
     }, (error) => {
-      if (error.code === 'permission-denied') {
+      if (error instanceof ApiError && error.status === 403) {
         console.warn("Permission denied for active course registry.");
         setPermissionError(true);
       }
-      handleFirestoreError(error, OperationType.LIST, "courses");
     });
 
-    const unsubTeachers = onSnapshot(query(collection(db, "users"), where("role", "==", "teacher")), (snapshot) => {
-      const list: UserProfile[] = [];
-      snapshot.forEach(docSnap => list.push({ ...docSnap.data() as UserProfile, uid: docSnap.id }));
-      setTeachers(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "users");
-    });
-    let unsubTrash = () => {};
+    const stopTeachers = live(() => fetchUsers({ role: 'teacher' }), setTeachers);
+    let stopTrash = () => {};
     if (profileRole === 'admin') {
-      unsubTrash = onSnapshot(collection(db, "trash"), (snapshot) => {
-        const list = [] as Course[]; 
-        snapshot.forEach(docSnap => list.push({ ...docSnap.data() as Course, id: docSnap.id }));
+      stopTrash = live(async () => (await fetchCourses({ includeArchived: true })).filter((c) => c.status === 'archived'), (list) => {
         setTrashedCourses(list);
         setTrashPermissionError(false);
       }, (error) => {
-        if (error.code === 'permission-denied') {
-          console.warn("User has admin role but Firestore rules restrict access to the 'trash' collection.");
-          setTrashPermissionError(true);
-        }
-        handleFirestoreError(error, OperationType.LIST, "trash");
+        if (error instanceof ApiError && error.status === 403) setTrashPermissionError(true);
       });
     }
 
-    return () => { unsubActive(); unsubTrash(); unsubTeachers(); };
+    return () => { stopActive(); stopTrash(); stopTeachers(); };
   }, [profileUid, profileRole]);
 
   const handleBatchRestore = async () => {
     if (selectedToRestore.length === 0) return;
     setIsProcessing(true);
     try {
-      const promises = selectedToRestore.map(async (id) => {
-        const course = trashedCourses.find(tc => tc.id === id);
-        if (course) {
-          const { archivedAt, archivedBy, ...cleanData } = course as any;
-          await setDoc(doc(db, "courses", id), {
-            ...cleanData,
-            status: 'active',
-            createdAt: Timestamp.now()
-          });
-          await deleteDoc(doc(db, "trash", id));
-        }
-      });
-      await Promise.all(promises);
+      await restoreCourses(selectedToRestore);
       setSelectedToRestore([]);
       alert("Selected courses restored to Academic Registry.");
     } catch (err: any) {
@@ -149,20 +111,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     if (selectedToArchive.length === 0) return;
     setIsProcessing(true);
     try {
-      const promises = selectedToArchive.map(async (id) => {
-        const course = courses.find(c => c.id === id);
-        if (course) {
-          const trashDocRef = doc(db, "trash", id);
-          await setDoc(trashDocRef, {
-            ...course,
-            status: 'archived',
-            archivedAt: Timestamp.now(),
-            archivedBy: profile?.email || 'Admin System'
-          });
-          await deleteDoc(doc(db, "courses", id));
-        }
-      });
-      await Promise.all(promises);
+      await archiveCourses(selectedToArchive);
       setSelectedToArchive([]);
       alert("Selected courses moved to Archive.");
     } catch (err: any) {
@@ -172,62 +121,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     }
   };
 
-  const syncCourseToStudents = async (course: Course) => {
-    if (!course.schoolYear || !course.yearLevel) return;
-    try {
-      let syField = "";
-      if (course.yearLevel === '1st Year') syField = "firstYearSchoolYear";
-      else if (course.yearLevel === '2nd Year') syField = "secondYearSchoolYear";
-      
-      if (!syField) return;
-
-      // Only query students who are currently in this year level and have the matching school year set
-      const q = query(
-        collection(db, "users"), 
-        where("role", "==", "student"), 
-        where("yearLevel", "==", course.yearLevel),
-        where(syField, "==", course.schoolYear)
-      );
-      
-      const snap = await getDocs(q);
-      const promises = snap.docs.map(async (studentDoc) => {
-        const studentData = studentDoc.data() as UserProfile;
-        const existingGrades = studentData.grades || [];
-        
-        const existingGradeIndex = existingGrades.findIndex(g => g.id === course.id);
-        
-        if (existingGradeIndex === -1) {
-          const newGrade: Grade = {
-            id: course.id,
-            courseName: course.name,
-            gradeValue: '',
-            isIncomplete: false,
-            dateReleased: new Date().toISOString().split('T')[0],
-            yearLevel: course.yearLevel as any,
-            semester: course.semester as any
-          };
-          await updateDoc(doc(db, "users", studentDoc.id), {
-            grades: [...existingGrades, newGrade]
-          });
-        } else {
-          // Update existing grade name if it changed
-          if (existingGrades[existingGradeIndex].courseName !== course.name) {
-            const updatedGrades = [...existingGrades];
-            updatedGrades[existingGradeIndex] = {
-              ...updatedGrades[existingGradeIndex],
-              courseName: course.name
-            };
-            await updateDoc(doc(db, "users", studentDoc.id), {
-              grades: updatedGrades
-            });
-          }
-        }
-      });
-      await Promise.all(promises);
-    } catch (err) {
-      console.error("Error syncing course to students:", err);
-    }
-  };
+  // Saving a course enrolls matching students on the server.
 
   const handleDuplicate = (course: Course) => {
     const { id, createdAt, archivedAt, archivedBy, ...cleanData } = course as any;
@@ -265,17 +159,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     setIsProcessing(true);
     try {
       const dataToSave = { ...formData, status: formData.status || 'active' };
-      const id = editingId || `CRS-${Math.random().toString(36).substr(2, 5).toUpperCase()}-${Date.now().toString().slice(-4)}`;
       delete (dataToSave as any).id;
-
-      if (editingId) {
-        await updateDoc(doc(db, "courses", editingId), dataToSave);
-        await syncCourseToStudents({ ...dataToSave, id: editingId } as Course);
-      } else {
-        const newCourse = { ...dataToSave, id, createdAt: Timestamp.now() } as Course;
-        await setDoc(doc(db, "courses", id), newCourse);
-        await syncCourseToStudents(newCourse);
-      }
+      await saveCourse(dataToSave, editingId || undefined);
       
       setIsAdding(false); setEditingId(null); setFormData(initialFormState);
       alert("Records successfully published and synced to students.");
@@ -502,7 +387,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                       <td className="px-8 py-5">
                         {isViewTrash ? (
                           <span className="text-[10px] font-bold text-fb-textSecondary uppercase italic">
-                            {c.archivedAt ? (c.archivedAt instanceof Timestamp ? c.archivedAt.toDate() : new Date(c.archivedAt.seconds * 1000)).toLocaleDateString() : 'N/A'}
+                            {c.archivedAt ? new Date(c.archivedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                           </span>
                         ) : (
                           <span className="text-xs font-bold text-fb-textSecondary capitalize italic">{c.professor}</span>
@@ -632,7 +517,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
 
                   {isViewTrash && (
                     <div className="text-[10px] font-bold text-fb-textSecondary uppercase italic">
-                      Archived: {c.archivedAt ? (c.archivedAt instanceof Timestamp ? c.archivedAt.toDate() : new Date(c.archivedAt.seconds * 1000)).toLocaleDateString() : 'N/A'}
+                      Archived: {c.archivedAt ? new Date(c.archivedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                     </div>
                   )}
 

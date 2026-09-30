@@ -9,7 +9,7 @@
     "start": "node server.ts",
     "preview": "vite preview",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json",
-    "dev:emulators": "VITE_USE_FIREBASE_EMULATORS=true vite",
+    "dev:emulators": "VITE_USE_FIREBASE_EMULATORS=true FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/acts} tsx server.ts",
     "emulators": "npx firebase-tools@latest emulators:start --only auth,firestore --project acts-bible-school-portal",
     "seed:emulators": "node scripts/seed-emulators.mjs",
     "db:local": "node scripts/db-local.mjs",
@@ -19,7 +19,8 @@
     "migrate:export": "tsx scripts/migrate/export.ts",
     "migrate:load": "tsx scripts/migrate/load.ts",
     "migrate:verify": "tsx scripts/migrate/verify.ts",
-    "test": "tsx --test --test-concurrency=1 tests/*.test.ts"
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "seed:local": "node scripts/seed-emulators.mjs && DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/acts} FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 MIGRATION_DATA_DIR=.local/migration-data sh -c 'drizzle-kit migrate && tsx scripts/migrate/export.ts && tsx scripts/migrate/load.ts'"
   },
   "dependencies": {
     "@vercel/functions": "^3.9.9",

@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "./academics.js";
 import { can, type User } from "./auth.js";
@@ -18,7 +18,8 @@ export const GradeInput = z.strictObject({
 export type GradeInput = z.infer<typeof GradeInput>;
 
 /** Grades per enrollment, for one student or one offering. */
-export async function listGrades(db: DbOrTx, filter: { studentId?: string; offeringId?: string }) {
+export async function listGrades(db: DbOrTx, filter: { studentId?: string; studentIds?: string[]; offeringId?: string }) {
+  if (filter.studentIds?.length === 0) return [];
   const rows = await db
     .select({
       enrollmentId: enrollments.id,
@@ -47,6 +48,7 @@ export async function listGrades(db: DbOrTx, filter: { studentId?: string; offer
     .leftJoin(grades, eq(grades.enrollmentId, enrollments.id))
     .where(and(
       filter.studentId ? eq(enrollments.studentId, filter.studentId) : undefined,
+      filter.studentIds ? inArray(enrollments.studentId, filter.studentIds) : undefined,
       filter.offeringId ? eq(enrollments.offeringId, filter.offeringId) : undefined,
     ))
     .orderBy(asc(schoolYears.label), asc(courseOfferings.yearLevel), asc(terms.semester), asc(courses.name), asc(users.lastName));
