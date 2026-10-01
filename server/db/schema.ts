@@ -127,6 +127,8 @@ export const courseOfferings = pgTable("course_offerings", { // one Firestore `c
   instructorId: uuid("instructor_id").references(() => users.id, { onDelete: "set null" }),
   /** Display-only instructor name for migrated courses whose teacher has no account. */
   instructorLabel: text("instructor_label"),
+  /** Credit units, shown on the transcript and used to weight the general average. */
+  units: numeric("units", { precision: 3, scale: 1 }).notNull().default("3"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }), // replaces `trash`
   deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   ...timestamps,
@@ -134,6 +136,7 @@ export const courseOfferings = pgTable("course_offerings", { // one Firestore `c
   index("offerings_term_level_idx").on(t.termId, t.yearLevel),
   index("offerings_instructor_idx").on(t.instructorId),
   check("offerings_year_level_ck", sql`${t.yearLevel} IN (1, 2)`),
+  check("offerings_units_ck", sql`${t.units} > 0`),
 ]);
 
 export const offeringMeetings = pgTable("offering_meetings", { // one row per weekday
@@ -231,6 +234,24 @@ export const materialFiles = pgTable("material_files", {
   materialId: uuid("material_id").primaryKey().references(() => materials.id, { onDelete: "cascade" }),
   content: bytea("content").notNull(),
 });
+
+// ---------- Official transcripts ----------
+// An issued transcript is frozen: `content` is the transcript as it was at issue time, so later grade
+// edits never change a document that was already handed out. Revoking keeps the row (verification
+// then reports it as revoked).
+export const transcripts = pgTable("transcripts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  /** Public verification code (printed with a QR code). */
+  code: text("code").notNull().unique(),
+  purpose: text("purpose"),
+  content: jsonb("content").notNull(),
+  issuedBy: uuid("issued_by").references(() => users.id, { onDelete: "set null" }),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedBy: uuid("revoked_by").references(() => users.id, { onDelete: "set null" }),
+  revokeReason: text("revoke_reason"),
+}, (t) => [index("transcripts_student_idx").on(t.studentId)]);
 
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),                           // e.g. "show_student_schedule"

@@ -11,6 +11,10 @@ import meSession from "./me-session.js";
 import offering from "./offerings/[id].js";
 import offeringRestore from "./offerings/[id]/restore.js";
 import offerings from "./offerings/index.js";
+import transcript from "./transcripts/[id].js";
+import transcriptRevoke from "./transcripts/[id]/revoke.js";
+import transcripts from "./transcripts/index.js";
+import transcriptPreview from "./transcripts/preview.js";
 import user from "./users/[id].js";
 import userHistory from "./users/[id]/history.js";
 import usersArchive from "./users/archive.js";
@@ -18,6 +22,7 @@ import usersCleanup from "./users/cleanup.js";
 import usersEnroll from "./users/enroll.js";
 import users from "./users/index.js";
 import usersRestore from "./users/restore.js";
+import verify from "./verify.js";
 
 type Handler = (req: VercelRequest, res: VercelResponse) => unknown;
 
@@ -44,6 +49,11 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["materials", materials],
   ["materials/:id", material],
   ["materials/:id/file", materialFile],
+  ["transcripts", transcripts],
+  ["transcripts/preview", transcriptPreview],
+  ["transcripts/:id", transcript],
+  ["transcripts/:id/revoke", transcriptRevoke],
+  ["verify/:code", verify],
 ];
 
 /** Finds the handler for a path like "users/abc/history", preferring static segments. */
