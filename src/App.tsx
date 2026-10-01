@@ -3,8 +3,6 @@ import {
   LayoutDashboard,
   User as UserIcon,
   Users,
-  GraduationCap,
-  Calendar as CalendarIcon,
   AlertCircle,
   RefreshCw,
   Menu,
@@ -14,7 +12,6 @@ import {
   Wallet,
   Settings as SettingsIcon,
   MessageCircle,
-  BookOpen,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 
@@ -36,11 +33,9 @@ import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ClassManagementPage, type ClassTab } from './pages/ClassManagementPage';
-import { StudentCalendarView } from './pages/StudentCalendarView';
 import { StudentBillingPage } from './pages/StudentBillingPage';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentGradesView } from './pages/StudentGradesView';
-import { StudentNotesPage } from './pages/StudentNotesPage';
 import type { UserProfile } from './types';
 
 // Page ids that open a Class Management tab (old sidebar items keep working as links).
@@ -49,6 +44,11 @@ const CLASS_TAB: Record<string, ClassTab | undefined> = {
   attendance: 'attendance', grades: 'grades',
 };
 const CLASS_PAGES = Object.keys(CLASS_TAB);
+// Students' old page ids ('records' and 'notes' are also notification links).
+const STUDENT_CLASS_TAB: Record<string, ClassTab | undefined> = {
+  classes: undefined, notes: 'notes', records: 'records', calendar: 'schedule',
+};
+const STUDENT_CLASS_PAGES = Object.keys(STUDENT_CLASS_TAB);
 
 export const App = () => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -168,13 +168,14 @@ export const App = () => {
   const isStudent = profile?.role === 'student';
 
   const renderContent = () => {
+    if (isStudent && profile && STUDENT_CLASS_PAGES.includes(activePage)) {
+      return <ClassManagementPage profile={profile} tab={STUDENT_CLASS_TAB[activePage]} studentSchedule={features.studentSchedule} />;
+    }
     switch (activePage) {
       case 'dashboard': return <StudentDashboard profile={profile} />;
       case 'profile': return <ProfilePage profile={profile} />;
       case 'records': return profile ? <StudentGradesView profile={profile} /> : null;
-      case 'calendar':
-        if (!isStudent) return profile ? <ClassManagementPage profile={profile} tab="schedule" /> : null;
-        return profile && features.studentSchedule ? <StudentCalendarView profile={profile} /> : <StudentDashboard profile={profile} />;
+      case 'calendar': return hasAdminView && profile ? <ClassManagementPage profile={profile} tab="schedule" /> : <StudentDashboard profile={profile} />;
       case 'admin': return (!isTeacher && hasAdminView) ? <AdminPanel profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       // Class Management tabs; the old page ids open their tab (tabs a role can't use aren't shown).
       case 'classes': case 'grades': case 'courses': case 'attendance': case 'upload_files':
@@ -189,7 +190,7 @@ export const App = () => {
         return isAdmin
           ? <SettingsPage tab={activePage === 'audit' ? 'audit' : activePage === 'settings/storage' ? 'storage' : 'general'} />
           : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'notes': return isStudent ? <StudentNotesPage /> : hasAdminView && profile ? <ClassManagementPage profile={profile} tab="materials" /> : null;
+      case 'notes': return hasAdminView && profile ? <ClassManagementPage profile={profile} tab="materials" /> : null;
       default: return <StudentDashboard profile={profile} />;
     }
   };
@@ -214,11 +215,9 @@ export const App = () => {
             <SidebarItem icon={UserIcon} label="My Profile" active={activePage === 'profile'} onClick={() => {setActivePage('profile'); setSidebarOpen(false)}} />
             {isStudent && (
               <>
-                <SidebarItem icon={GraduationCap} label="Records" active={activePage === 'records'} onClick={() => {setActivePage('records'); setSidebarOpen(false)}} />
-                <SidebarItem icon={BookOpen} label="Course Notes" active={activePage === 'notes'} onClick={() => {setActivePage('notes'); setSidebarOpen(false)}} />
+                <SidebarItem icon={Briefcase} label="Class Management" active={STUDENT_CLASS_PAGES.includes(activePage)} onClick={() => {setActivePage('classes'); setSidebarOpen(false)}} />
                 <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
                 {features.chat && <SidebarItem icon={MessageCircle} label="Messages" badge={chatUnread} active={activePage === 'messages'} onClick={() => {setActivePage('messages'); setSidebarOpen(false)}} />}
-                {features.studentSchedule && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
               </>
             )}
             {hasAdminView && (
