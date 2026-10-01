@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["api/**/*.ts", "server/**/*.ts", "scripts/migrate/**/*.ts", "tests/**/*.ts", "drizzle.config.ts"]
+  "include": ["api/**/*.ts", "server/**/*.ts", "scripts/migrate/**/*.ts", "scripts/ops/**/*.ts", "tests/**/*.ts", "drizzle.config.ts"]
 }

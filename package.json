@@ -19,6 +19,9 @@
     "migrate:export": "tsx scripts/migrate/export.ts",
     "migrate:load": "tsx scripts/migrate/load.ts",
     "migrate:verify": "tsx scripts/migrate/verify.ts",
+    "admin:grant": "tsx scripts/ops/admin-grant.ts",
+    "db:backup": "tsx scripts/ops/backup.ts",
+    "db:restore": "tsx scripts/ops/restore.ts",
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "seed:local": "node scripts/seed-emulators.mjs && DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/acts} FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 MIGRATION_DATA_DIR=.local/migration-data sh -c 'drizzle-kit migrate && tsx scripts/migrate/export.ts && tsx scripts/migrate/load.ts'"
   },

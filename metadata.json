@@ -1,8 +1,0 @@
-{
-  "description": "ACTS Bible School Portal",
-  "requestFramePermissions": [],
-  "name": "ACTS Bible School Portal",
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
