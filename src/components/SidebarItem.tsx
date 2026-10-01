@@ -1,4 +1,4 @@
-export const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick: () => void }) => (
+export const SidebarItem = ({ icon: Icon, label, active, onClick, badge }: { icon: any, label: string, active?: boolean, onClick: () => void, badge?: number }) => (
   <div className="px-2">
     <button 
       onClick={onClick}
@@ -12,6 +12,7 @@ export const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any,
         <Icon size={20} className={active ? 'text-fb-blue' : 'text-fb-textPrimary'} />
       </div>
       <span className={`font-semibold text-sm ${active ? 'text-fb-blue' : 'text-fb-textPrimary'}`}>{label}</span>
+      {!!badge && <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-fb-blue text-white text-[10px] font-black flex items-center justify-center" aria-label={`${badge} unread`}>{badge > 99 ? '99+' : badge}</span>}
     </button>
   </div>
 );

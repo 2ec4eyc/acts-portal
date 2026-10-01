@@ -110,6 +110,7 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
       case "materials": return str(row?.file_name) ?? "File";
       case "app_settings": return SETTING_NAMES[r.entityId] ?? r.entityId;
       case "announcements": return str(row?.title) ?? "Announcement";
+      case "conversations": return `Chat with ${student(row) ?? "a deleted account"}`;
       case "invoices": return [str(row?.number), student(row)].filter(Boolean).join(" · ");
       case "invoice_lines": return [str(row?.description), peso(row?.amount)].filter(Boolean).join(" · ");
       case "payments": return [student(row), peso(row?.amount)].filter(Boolean).join(" · ");

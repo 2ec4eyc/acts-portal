@@ -15,6 +15,7 @@ import {
   Megaphone,
   Wallet,
   Settings as SettingsIcon,
+  MessageCircle,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 
@@ -26,12 +27,14 @@ import { ApiError, claimSession, hasSession, releaseSession, setSessionReplacedH
 import { fetchMyProfile } from './lib/data';
 import { auth } from './lib/firebase';
 import { live } from './lib/live';
+import { fetchChatUnread } from './lib/chat';
 import { DEFAULT_FEATURES, fetchPublicSettings, type Features } from './lib/settings';
 import { AdminBillingPage } from './pages/AdminBillingPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AttendanceTracker } from './pages/AttendanceTracker';
 import { CourseManagementPage } from './pages/CourseManagementPage';
+import { OfficeMessages, StudentMessages } from './pages/MessagesPage';
 import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -53,6 +56,7 @@ export const App = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [kickedOut, setKickedOut] = useState(false);
   const [features, setFeatures] = useState<Features>(DEFAULT_FEATURES);
+  const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => { 
@@ -107,6 +111,13 @@ export const App = () => {
     })();
     return () => { cancelled = true; stop?.(); };
   }, [user]);
+
+  // Unread chat badge: threads waiting for the office (admins), or a reply for a student.
+  const chatRole = profile?.role === 'admin' ? 'office' : profile?.role === 'student' && features.chat ? 'student' : null;
+  useEffect(() => {
+    if (!chatRole) { setChatUnread(0); return; }
+    return live(fetchChatUnread, (r) => setChatUnread(r.count), () => {});
+  }, [chatRole]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><RefreshCw className="animate-spin text-fb-blue" size={40} /></div>;
   if (kickedOut) {
@@ -164,6 +175,7 @@ export const App = () => {
       case 'courses': return isAdmin ? <CourseManagementPage profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'attendance': return isAdmin && profile ? <AttendanceTracker profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'billing': return isAdmin ? <AdminBillingPage /> : isStudent ? <StudentBillingPage receiptUploads={features.receiptUploads} /> : <PermissionDeniedGate message="Admin Role Required" />;
+      case 'messages': return isAdmin ? <OfficeMessages /> : isStudent && features.chat ? <StudentMessages /> : <StudentDashboard profile={profile} />;
       case 'announcements': return isAdmin ? <AnnouncementsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       // Settings tabs: 'audit' (old Audit Log page) and 'settings/storage' (storage alerts) open their tab.
       case 'settings': case 'settings/storage': case 'audit':
@@ -197,6 +209,7 @@ export const App = () => {
               <>
                 <SidebarItem icon={GraduationCap} label="Records" active={activePage === 'records'} onClick={() => {setActivePage('records'); setSidebarOpen(false)}} />
                 <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
+                {features.chat && <SidebarItem icon={MessageCircle} label="Messages" badge={chatUnread} active={activePage === 'messages'} onClick={() => {setActivePage('messages'); setSidebarOpen(false)}} />}
                 {features.studentSchedule && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
               </>
             )}
@@ -215,6 +228,7 @@ export const App = () => {
                 {isAdmin && (
                   <>
                     <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
+                    <SidebarItem icon={MessageCircle} label="Messages" badge={chatUnread} active={activePage === 'messages'} onClick={() => {setActivePage('messages'); setSidebarOpen(false)}} />
                     {features.announcements && <SidebarItem icon={Megaphone} label="Announcements" active={activePage === 'announcements'} onClick={() => {setActivePage('announcements'); setSidebarOpen(false)}} />}
                     <SidebarItem icon={SettingsIcon} label="Settings" active={['settings', 'settings/storage', 'audit'].includes(activePage)} onClick={() => {setActivePage('settings'); setSidebarOpen(false)}} />
                   </>

@@ -8,7 +8,7 @@ Covers chat and announcements, automated attendance alerts, billing and receipts
   - The Prisma-specific questions (middleware, client extensions) are answered with the Drizzle/Postgres equivalent, which is stronger because it can't be bypassed.
 - **Hosting is the Vercel Hobby plan.** That means at most 12 functions (we use 1), crons that run **once a day**, a 4.5 MB request body limit, and no long-lived WebSockets.
 - **Payments:** students pay outside the portal (bank transfer, GCash, Maya, cash) and **upload proof**. An admin verifies it. There is no online gateway yet (§3.6 shows where one would plug in).
-- **Real-time** uses **Ably**. Money is in **PHP**, and receipts are images or PDF **up to 2 MB**.
+- **Chat** is stored in Postgres and delivered by polling (the school chose not to add Ably; see §3.1). Money is in **PHP**, and receipts are images or PDF **up to 2 MB**.
 
 **Status of the code in this document:**
 - The Drizzle models type-check against the real `server/db/schema.ts`.
@@ -19,7 +19,7 @@ Covers chat and announcements, automated attendance alerts, billing and receipts
   - a bad receipt type and a bad custom-field key were rejected;
   - the JSONB filter worked, and both materialized views refreshed concurrently;
   - the alert fired once at 2 absences and once at 3, never twice, and skipped excused absences.
-- The TypeScript in §3 (route, Ably, R2 and cache code) is the implementation pattern and is **not yet compiled**. It is written against the real helpers (`requireUser`, `methods`, `db`) and gets compiled and tested in each phase's PR.
+- The TypeScript in §3 (route, R2 and cache code) is the implementation pattern and is **not yet compiled**. It is written against the real helpers (`requireUser`, `methods`, `db`) and gets compiled and tested in each phase's PR.
 
 ---
 
@@ -27,7 +27,7 @@ Covers chat and announcements, automated attendance alerts, billing and receipts
 
 | Module | Reuses | Adds |
 |---|---|---|
-| 1. Chat & announcements | `users`, `cohorts`, `course_offerings`; client `live()` polling as fallback | `conversations`, `messages`, `announcements`, `announcement_reads`, `notifications`; Ably |
+| 1. Chat & announcements | `users`, `cohorts`, `course_offerings`; client `live()` polling as fallback | `conversations`, `messages`, `announcements`, `announcement_reads`, `notifications` |
 | 2. Attendance alerts | `attendance_sessions`/`attendance_records` (these *are* the attendance log), `saveAttendance()` | `attendance_alerts`; alert step inside the existing save transaction |
 | 3. Billing ✅ | `users`, `terms` | `invoices`, `invoice_lines`, `payments`, `payment_allocations`, `receipt_uploads`, `payment_reminders`; views `invoice_balances`, `student_ledger`; R2 bucket; daily cron |
 | 4. Audit | `audit_log` (already written for transcripts, resets, admin grants) | row-level columns, a trigger on every sensitive table, `withActor()`; append-only guard |
@@ -38,7 +38,7 @@ Design rules used throughout:
 - **Derive, don't store.** Invoice status (paid, partially paid, pending, overdue) and running balances come from views, so they can't drift from the underlying rows.
 - **Never hard-delete money or records.** Invoices and payments are *voided* with a reason, and the audit trigger keeps every version.
 - **Idempotent automation.** Every automatic notification is guarded by a unique key (`attendance_alerts`, `payment_reminders`). Retries, double saves and cron reruns can't double-send.
-- **The database is the source of truth.** Ably only delivers. A message that missed the socket is still in Postgres, and the next fetch shows it.
+- **The database is the source of truth.** Screens poll it for anything new.
 
 ---
 
@@ -410,66 +410,39 @@ CREATE UNIQUE INDEX mv_attendance_daily_uq ON mv_attendance_daily (day);
 
 ## 3. Serverless infrastructure on Vercel
 
-### 3.1 Real-time chat: Postgres + Ably
+### 3.1 Chat: Postgres + polling (no outside service) ✅
 
-Vercel Functions can't hold a WebSocket open, so a managed real-time service holds the sockets. The function stays request/response.
+*Changed in phase 4:* the school chose not to add Ably. Messages are stored only in Postgres, in the same Neon database, and screens poll for new ones.
 
 ```
-Student browser ──POST /api/chat/conversations/:id/messages──▶ Vercel Function
-                                                                 1. requireUser, feature flag "chat" on?
-                                                                 2. INSERT message (Postgres, source of truth)
-                                                                 3. Ably REST publish → channel chat:{studentId}
-Admin browsers ◀──── Ably WebSocket (subscribed to chat:*) ◀────┘
+Student browser ──POST /api/chat/conversations/:id/messages──▶ Vercel Function → INSERT (Postgres)
+Admin browser   ──GET  …/messages?after=<last id>  every 5 s ──▶ Vercel Function → one indexed query
 ```
 
-**Why Ably.** The free tier covers this school many times over, it offers token auth with per-channel capabilities, and it has a REST publish that suits serverless.
-- **Pusher Channels** works the same way.
-- **Supabase Realtime** would add a second Postgres provider.
-- **Polling-only** stays as the fallback.
+**Polling.**
+- An open thread asks for messages **after the last id it has**. This is a keyset query on `(conversation_id, id)`.
+- It polls every **5 s**, slows to **15 s** after two quiet minutes, and pauses while the tab is hidden.
+- Lists, the bell and the sidebar badge keep the existing **30 s** `live()` refresh. The admin inbox refreshes every 15 s.
 
-**Token endpoint.** The browser never sees the API key. Capabilities are derived from the role stored in Postgres.
+**Cost.**
+- One open thread costs about 720 requests an hour, or about 240 an hour once quiet.
+- For example, 20 people each keeping a thread open for an hour a day comes to roughly 0.2–0.45 M function calls a month, which is inside Vercel Hobby's included usage.
+- If it ever isn't, the 5 s and 15 s values in `src/lib/chat.ts` are the knobs.
 
-```ts
-// server/routes/realtime/token.ts
-import Ably from "ably";
-import { can, requireUser } from "../../lib/auth.js";
-import { methods } from "../../lib/http.js";
+**Size and yearly archive.**
+- Chat is text only, up to 4,000 characters per message, so it is small: about 10–50 MB a year even for a busy school.
+- In **Settings → Storage → Chat history**, an admin downloads every message sent before a chosen date (default 12 months ago):
+  - a **PDF**: a cover page, then one section per student;
+  - a **CSV**: UTF-8 with a byte-order mark, for Excel.
+- Only after both files are saved can the admin remove those messages.
+- `POST /api/chat/archive/purge` refuses (409) if the count changed since the download, so nothing is removed that isn't in the files.
+- The archive writes one `chat.archived` audit entry. Messages themselves are not audited row by row, because that would double their size.
 
-const ably = new Ably.Rest({ key: process.env.ABLY_API_KEY! });
-
-// POST /api/realtime/token → an Ably TokenRequest for this user's channels only (1 hour).
-export default methods({
-  POST: async (req, res) => {
-    const user = await requireUser(req);
-    const capability: Record<string, ("subscribe" | "publish" | "presence")[]> = { [`notify:${user.id}`]: ["subscribe"] };
-    if (user.role === "student") capability[`chat:${user.id}`] = ["subscribe", "presence"];
-    if (can(user, "chat:admin_inbox")) { capability["chat:*"] = ["subscribe", "presence"]; capability["admin"] = ["subscribe"]; }
-    res.status(200).json(await ably.auth.createTokenRequest({ clientId: user.id, capability: JSON.stringify(capability), ttl: 3_600_000 }));
-  },
-});
-```
-
-**Publishing after the write commits:**
-```ts
-// server/lib/realtime.ts: never fail the request because the socket service is down
-export async function publish(channel: string, name: string, data: unknown) {
-  if (!process.env.ABLY_API_KEY) return;
-  await ably.channels.get(channel).publish(name, data).catch((err) => console.error("ably publish", err));
-}
-```
-
-**Client side:**
-1. `new Ably.Realtime({ authCallback })` calls `/api/realtime/token`.
-2. It subscribes to `chat:{me}` (students) or `chat:*` (admins), plus `notify:{me}`.
-3. When an event arrives, it **appends the payload** to the open thread, or calls `refreshAll()` from `src/lib/live.ts` for lists.
-4. If Ably fails to connect, the existing 30 s polling keeps everything working, just slower.
-
-Unread counts come from `conversations.*_last_read_at` compared with `last_message_at`. There's no per-message read row.
-
-**Rules:**
-- Messages are plain text up to 4,000 characters.
-- A student can only post to their own conversation.
-- With the `chat` toggle off, students get `403 Chat is turned off` and the UI hides the composer. Admins can still read the history.
+**Rules.**
+- Text only, up to 4,000 characters.
+- A student can only read and post in their own thread, and only while the `chat` switch is on and the thread is open.
+- The office (admins) can always read and write, and can close or reopen a thread.
+- Notifications are coalesced: the other side gets one notification per burst, not one per message.
 
 ### 3.2 Absence alerts: event-driven, inside the attendance save
 
@@ -710,10 +683,9 @@ All routes are added to the `ROUTES` table in `server/routes/index.ts`, so it st
 | **Communication** ||||
 | GET, POST | `/api/chat/conversations` | student (own), admin (all) | POST: student opens or gets their thread. GET (admin): inbox with unread counts |
 | GET | `/api/chat/conversations/:id/messages?before=` | owner, admin | Newest 50, keyset pagination |
-| POST | `/api/chat/conversations/:id/messages` | owner, admin | `{ body }`. Feature `chat` (students). Publishes to Ably |
+| POST | `/api/chat/conversations/:id/messages` | owner, admin | `{ body }`. Feature `chat` (students) |
 | POST | `/api/chat/conversations/:id/read` | owner, admin | Sets the reader's `*_last_read_at` |
 | PATCH | `/api/chat/conversations/:id` | admin | `{ status: open\|closed }` |
-| POST | `/api/realtime/token` | signed in | Ably TokenRequest for the caller's channels |
 | GET, POST | `/api/announcements` | GET: everyone (filtered to their audience); POST: `announcements:write` | `{ title, body, audienceRoles, cohortId?, offeringId?, pinned, publishAt, expiresAt }` |
 | PATCH, DELETE | `/api/announcements/:id` | `announcements:write` | |
 | POST | `/api/announcements/:id/read` | signed in | |
@@ -762,7 +734,6 @@ Students reach their own data through `/api/me/*` and ownership checks, never th
 
 | Service | Plan | Env vars (Vercel → Settings → Environment Variables) |
 |---|---|---|
-| Ably | Free | `ABLY_API_KEY` |
 | Cloudflare R2 | Free (10 GB, no egress fees) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` |
 | Vercel Cron | Included in Hobby (daily) | `CRON_SECRET` (any long random string) |
 | Neon, Vercel, Firebase | Unchanged | — |
@@ -783,8 +754,8 @@ Each phase ships with:
 | 1. Foundations ✅ | `withActor`, audit columns and triggers, Audit Log page; typed settings, `/api/settings/public`, feature toggles panel | — |
 | 2. Notifications & attendance alerts ✅ | `notifications`, bell/inbox UI, `attendance_alerts` in `saveAttendance`; announcements (create, target, pin, expire, feed) | 1 |
 | 3. Billing | invoices (single and batch), payments, allocations, ledger/statement, receipts (R2), review queue, student finance page, daily cron reminders | 1, 2 |
-| 4. Chat | conversations, messages, Ably token and publish, student chat and admin inbox, polling fallback | 1, 2 |
+| 4. Chat ✅ | conversations, messages, polling, student Messages page and shared admin inbox, yearly PDF + CSV archive | 1, 2 |
 | 5. Analytics dashboard | materialized views, summary endpoint, tiles and charts | 2, 3 |
 | 6. Custom fields | definitions admin screen, profile and student forms, filters | 1 |
 
-**Before phase 3,** create the R2 bucket. **Before phase 4,** create the Ably app. Exact click-through steps for both will come with those PRs.
+**Before phase 3,** create the R2 bucket. Phase 4 needs no outside account.

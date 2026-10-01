@@ -453,3 +453,33 @@ export const storageStatus = pgTable("storage_status", {
   orphansRemoved: integer("orphans_removed").notNull().default(0),
   alertLevel: storageAlertLevel("alert_level").notNull().default("ok"),
 }, (t) => [check("storage_status_one_row_ck", sql`${t.id} = 1`)]);
+
+// ---------- Chat with the school office (phase 4) ----------
+// Stored here, delivered by polling (no outside service). Messages aren't audited row by row (that
+// would double their size); archiving them writes one "chat.archived" audit entry instead.
+export const conversationStatus = pgEnum("conversation_status", ["open", "closed"]);
+
+/** One thread per student with the school office: a shared inbox any admin can answer. */
+export const conversations = pgTable("conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  status: conversationStatus("status").notNull().default("open"),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+  /** Who sent the latest message, for "waiting for a reply" in the inbox. */
+  lastSenderRole: text("last_sender_role"),                 // "student" | "admin"
+  studentLastReadAt: timestamp("student_last_read_at", { withTimezone: true }),
+  adminLastReadAt: timestamp("admin_last_read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("conversations_last_message_idx").on(t.lastMessageAt)]);
+
+export const messages = pgTable("messages", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  senderId: uuid("sender_id").references(() => users.id, { onDelete: "set null" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("messages_conversation_idx").on(t.conversationId, t.id),
+  index("messages_created_idx").on(t.createdAt),
+  check("messages_body_ck", sql`char_length(${t.body}) BETWEEN 1 AND 4000`),
+]);

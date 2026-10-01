@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, Eye, RefreshCw, Trash2 } from 'lucide-react';
 
 import { Card } from './Card';
+import { ChatArchive } from './ChatArchive';
 import { StatusChip } from './StatementView';
 import { ConfirmModal } from './modals/ConfirmModal';
 import { formatDay, openReceipt } from '../lib/finance';
@@ -265,6 +266,7 @@ export const StorageSettings = () => {
       {u && <UsageCard u={u} onRecount={recount} recounting={recounting} />}
       <LimitsCard onSaved={refresh} />
       <FilesCard version={version} onChanged={() => { refresh(); setVersion((v) => v + 1); }} />
+      <ChatArchive />
     </div>
   );
 };
