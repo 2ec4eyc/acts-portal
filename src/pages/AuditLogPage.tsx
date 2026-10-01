@@ -16,12 +16,20 @@ const TABLES: Record<string, string> = {
   attendance_records: 'Attendance',
   materials: 'Course files',
   transcripts: 'Transcripts',
+  announcements: 'Announcements',
+  invoices: 'Invoices',
+  invoice_lines: 'Invoice charges',
+  payments: 'Payments',
+  payment_allocations: 'Payment allocations',
+  receipt_uploads: 'Receipts',
   app_settings: 'Settings',
 };
 const SINGULAR: Record<string, string> = {
   grades: 'a grade', users: 'an account', user_profiles: 'a profile', student_records: 'a student record',
   course_offerings: 'a course', attendance_records: 'attendance', materials: 'a course file',
-  transcripts: 'a transcript', app_settings: 'a setting',
+  transcripts: 'a transcript', app_settings: 'a setting', announcements: 'an announcement',
+  invoices: 'an invoice', invoice_lines: 'an invoice charge', payments: 'a payment',
+  payment_allocations: 'a payment allocation', receipt_uploads: 'a receipt',
 };
 const VERB = { INSERT: 'added', UPDATE: 'changed', DELETE: 'removed' } as const;
 const EVENTS: Record<string, string> = {
@@ -94,7 +102,8 @@ const Entry = ({ entry }: { entry: AuditEntry; key?: number }) => {
   );
 };
 
-export const AuditLogPage = () => {
+/** `embedded`: shown as a tab in Settings, which already provides the page heading. */
+export const AuditLogPage = ({ embedded = false }: { embedded?: boolean }) => {
   const [filter, setFilter] = useState<AuditFilter>({});
   const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
@@ -127,10 +136,10 @@ export const AuditLogPage = () => {
   const field = 'w-full bg-white border-2 border-fb-gray rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-fb-blue';
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className={`space-y-6 ${embedded ? '' : 'pb-10'}`}>
       <div>
-        <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Audit Log</h1>
-        <p className="text-sm text-fb-textSecondary">Every change to grades, accounts, courses, attendance, files, transcripts and settings: who made it, when, and what changed. Entries can't be edited or deleted.</p>
+        {!embedded && <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Audit Log</h1>}
+        <p className="text-sm text-fb-textSecondary">Every change to grades, accounts, courses, attendance, files, transcripts, billing and settings: who made it, when, and what changed. Entries can't be edited or deleted.</p>
       </div>
       <Card noPadding>
         <div className="p-4 md:p-5 grid grid-cols-1 md:grid-cols-4 gap-3 border-b border-fb-border">

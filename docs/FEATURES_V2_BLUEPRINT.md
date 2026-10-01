@@ -564,7 +564,7 @@ For example: *Ada Admin changed `grades` row `enrollment 9f…` from 82 to 88 at
 
 Sensitive columns never reach the log: the trigger audits the tables listed in §2.2, and none of them hold passwords or tokens.
 
-**Admin "Audit Log" page:**
+**Admin "Audit Log" page** (now the **Audit log** tab in Settings):
 - Uses `GET /api/audit` with filters for person, table, row and date range, plus a cursor (keyset on `id`).
 - Each entry has a "What changed" view that diffs `old` against `new`.
 - Viewing it requires `audit:read` (admins).

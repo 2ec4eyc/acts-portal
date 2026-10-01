@@ -19,10 +19,13 @@ export const AuditQuery = z.object({
 
 type Row = Record<string, unknown> | null;
 /** Columns that hold a user id; the API shows the person's name instead. */
-const PERSON_FIELDS = new Set(["recorded_by", "instructor_id", "updated_by", "deleted_by", "uploaded_by", "issued_by", "revoked_by", "student_id", "user_id"]);
+const PERSON_FIELDS = new Set(["recorded_by", "instructor_id", "updated_by", "deleted_by", "uploaded_by", "issued_by", "revoked_by", "student_id", "user_id",
+  "created_by", "reviewed_by", "voided_by", "file_deleted_by"]);
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
-const SETTING_NAMES: Record<string, string> = { features: "Feature switches" };
+const SETTING_NAMES: Record<string, string> = {
+  features: "Feature switches", attendanceAlerts: "Absence alerts", billing: "Payment reminders", storage: "Storage limits",
+};
 
 /** Fields that differ between the old and new row (all of them for an add or a removal). */
 function changes(oldRow: Row, newRow: Row) {
@@ -91,6 +94,8 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
     }
   }
 
+  const student = (row: Row) => people.get(str(row?.student_id) ?? "")?.name;
+  const peso = (v: unknown) => (v == null ? undefined : `₱${Number(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   const subject = (r: (typeof page)[number]) => {
     const row = (r.new ?? r.old) as Row;
     const rowName = row?.first_name ? `${row.first_name} ${row.last_name}` : undefined;
@@ -104,6 +109,12 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
       case "transcripts": return `${people.get(str(row?.student_id) ?? "")?.name ?? "Student"} · ${str(row?.code) ?? ""}`;
       case "materials": return str(row?.file_name) ?? "File";
       case "app_settings": return SETTING_NAMES[r.entityId] ?? r.entityId;
+      case "announcements": return str(row?.title) ?? "Announcement";
+      case "invoices": return [str(row?.number), student(row)].filter(Boolean).join(" · ");
+      case "invoice_lines": return [str(row?.description), peso(row?.amount)].filter(Boolean).join(" · ");
+      case "payments": return [student(row), peso(row?.amount)].filter(Boolean).join(" · ");
+      case "payment_allocations": return `Payment applied · ${peso(row?.amount) ?? ""}`.trim();
+      case "receipt_uploads": return [student(row), peso(row?.amount_claimed)].filter(Boolean).join(" · ") || "Receipt";
       default: return r.entityId;
     }
   };

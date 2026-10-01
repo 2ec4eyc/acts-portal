@@ -12,7 +12,6 @@ import {
   CheckSquare,
   LogOut,
   Upload,
-  History,
   Megaphone,
   Wallet,
   Settings as SettingsIcon,
@@ -32,7 +31,6 @@ import { AdminBillingPage } from './pages/AdminBillingPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AttendanceTracker } from './pages/AttendanceTracker';
-import { AuditLogPage } from './pages/AuditLogPage';
 import { CourseManagementPage } from './pages/CourseManagementPage';
 import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
@@ -167,8 +165,11 @@ export const App = () => {
       case 'attendance': return isAdmin && profile ? <AttendanceTracker profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'billing': return isAdmin ? <AdminBillingPage /> : isStudent ? <StudentBillingPage receiptUploads={features.receiptUploads} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'announcements': return isAdmin ? <AnnouncementsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'audit': return isAdmin ? <AuditLogPage /> : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'settings': return isAdmin ? <SettingsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
+      // Settings tabs: 'audit' (old Audit Log page) and 'settings/storage' (storage alerts) open their tab.
+      case 'settings': case 'settings/storage': case 'audit':
+        return isAdmin
+          ? <SettingsPage tab={activePage === 'audit' ? 'audit' : activePage === 'settings/storage' ? 'storage' : 'general'} />
+          : <PermissionDeniedGate message="Admin Role Required" />;
       case 'upload_files': return isTeacher && profile ? <TeacherUploadFilesView profile={profile} /> : null;
       default: return <StudentDashboard profile={profile} />;
     }
@@ -215,8 +216,7 @@ export const App = () => {
                   <>
                     <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
                     {features.announcements && <SidebarItem icon={Megaphone} label="Announcements" active={activePage === 'announcements'} onClick={() => {setActivePage('announcements'); setSidebarOpen(false)}} />}
-                    <SidebarItem icon={History} label="Audit Log" active={activePage === 'audit'} onClick={() => {setActivePage('audit'); setSidebarOpen(false)}} />
-                    <SidebarItem icon={SettingsIcon} label="Settings" active={activePage === 'settings'} onClick={() => {setActivePage('settings'); setSidebarOpen(false)}} />
+                    <SidebarItem icon={SettingsIcon} label="Settings" active={['settings', 'settings/storage', 'audit'].includes(activePage)} onClick={() => {setActivePage('settings'); setSidebarOpen(false)}} />
                   </>
                 )}
               </>

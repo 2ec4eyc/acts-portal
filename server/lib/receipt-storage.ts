@@ -86,7 +86,7 @@ export async function checkAlerts(db: DbOrTx): Promise<Level> {
     : { title: "Receipt storage is almost full", body: `Receipt files use ${fmt(u.usedBytes)}; uploads stop at ${fmt(u.limitBytes)} (${where}). Free space in Settings → Storage.` };
   const admins = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), eq(users.status, "active")));
   await notify(db, admins.map((a) => ({
-    userId: a.id, kind: "storage_warning" as const, link: "settings", ...message,
+    userId: a.id, kind: "storage_warning" as const, link: "settings/storage", ...message,
     data: { level: u.level, usedBytes: u.usedBytes, limitBytes: u.limitBytes },
   })));
   return u.level;

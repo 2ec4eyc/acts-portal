@@ -15,7 +15,7 @@ before(async () => {
   f = await setup();
   for (const name of ["finance/invoices/index", "finance/invoices/[id]", "finance/invoices/[id]/remind", "finance/payments/index",
     "finance/payments/[id]", "finance/students/index", "finance/students/[id]/statement", "me/finance", "finance/receipts/index",
-    "finance/receipts/upload-url", "finance/receipts/[id]/file", "finance/receipts/[id]/review", "cron/daily", "settings/[key]", "notifications/index"]) {
+    "finance/receipts/upload-url", "finance/receipts/[id]/file", "finance/receipts/[id]/review", "cron/daily", "settings/[key]", "notifications/index", "audit/index"]) {
     h[name] = await route(name);
   }
 });
@@ -231,5 +231,13 @@ describe("reminders", () => {
       "SELECT DISTINCT table_name FROM audit_log WHERE actor_id = $1 AND table_name IN ('invoices','invoice_lines','payments','payment_allocations','receipt_uploads')",
       [f.ids.admin])).rows.map((r) => r.table_name).sort();
     assert.deepEqual(rows, ["invoice_lines", "invoices", "payment_allocations", "payments", "receipt_uploads"]);
+  });
+
+  test("the audit log names money entries readably", async () => {
+    const subjects = async (table: string) =>
+      (await call(h["audit/index"], { token: f.tokens.admin, query: { table } })).body.entries.map((e: { subject: string }) => e.subject);
+    assert.ok((await subjects("invoices")).some((s: string) => /^INV-\d{4}-\d{4} · Sam Student$/.test(s)));
+    assert.ok((await subjects("payments")).some((s: string) => /^Sam Student · ₱2,000\.00$/.test(s)));
+    assert.ok((await subjects("receipt_uploads")).some((s: string) => /^Sam Student · ₱1,000\.00$/.test(s)));
   });
 });
