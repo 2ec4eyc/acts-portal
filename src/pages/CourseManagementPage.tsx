@@ -38,6 +38,7 @@ import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
 import { toast } from '../lib/toast';
+import { missingDays } from '../lib/schedule';
 
 export const CourseManagementPage = ({ profile }: { profile: UserProfile | null }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -62,6 +63,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   const [dayDetailData, setDayDetailData] = useState(null as { date: string, courses: Course[] } | null);
   const [teachers, setTeachers] = useState([] as UserProfile[]);
   const [unsetOnly, setUnsetOnly] = useState(false);
+  const [noDaysOnly, setNoDaysOnly] = useState(false);
   const [checking, setChecking] = useState<Course | null>(null);
   
   const initialFormState: Partial<Course> = { 
@@ -163,6 +165,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.schoolType) { toast.error('Choose Day School or Night School for this course.'); return; }
+    if (formData.isRecurring && missingDays(formData as Course)) { toast.error('Choose the class days.'); return; }
     setIsProcessing(true);
     try {
       const dataToSave = { ...formData, status: formData.status || 'active' };
@@ -178,14 +181,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   const toggleDayOfWeek = (day: string) => {
     setFormData(prev => {
       const current = prev.daysOfWeek || [];
-      let updated;
-      if (prev.frequency === 'Daily') {
-          updated = [day];
-      } else {
-          updated = current.includes(day) 
-            ? current.filter(d => d !== day) 
-            : [...current, day];
-      }
+      const updated = current.includes(day) ? current.filter(d => d !== day) : [...current, day];
       return { ...prev, daysOfWeek: updated };
     });
   };
@@ -201,7 +197,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     const matchesSchoolYear = schoolYearFilter === 'All' || c.schoolYear === schoolYearFilter;
     const isNotArchived = isViewTrash || c.status !== 'archived'; 
     const matchesUnset = !unsetOnly || isViewTrash || !c.schoolType;
-    return matchesSearch && matchesYear && matchesSemester && matchesSchoolYear && isNotArchived && matchesUnset;
+    const matchesNoDays = !noDaysOnly || isViewTrash || missingDays(c);
+    return matchesSearch && matchesYear && matchesSemester && matchesSchoolYear && isNotArchived && matchesUnset && matchesNoDays;
   });
 
   const sorted = useMemo(() => {
@@ -222,9 +219,10 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, yearLevelFilter, semesterFilter, schoolYearFilter, isViewTrash, unsetOnly]);
+  }, [searchTerm, yearLevelFilter, semesterFilter, schoolYearFilter, isViewTrash, unsetOnly, noDaysOnly]);
 
   const unsetCount = courses.filter((c) => c.status !== 'archived' && !c.schoolType).length;
+  const noDaysCount = courses.filter((c) => c.status !== 'archived' && missingDays(c)).length;
 
   const uniqueSchoolYears = useMemo(() => {
     const years = new Set<string>();
@@ -233,7 +231,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     return Array.from(years).sort().reverse();
   }, [courses, trashedCourses]);
 
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="space-y-8 pb-10">
@@ -247,6 +245,19 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
           </span>
           <button type="button" onClick={() => setUnsetOnly(!unsetOnly)} className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[10px] font-black uppercase tracking-wider hover:bg-amber-100">
             {unsetOnly ? 'Show all courses' : 'Show them'}
+          </button>
+        </div>
+      )}
+      {profileRole === 'admin' && (noDaysCount > 0 || noDaysOnly) && !isViewTrash && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle size={18} className="shrink-0 text-amber-600" aria-hidden="true" />
+          <span className="flex-1 min-w-[200px]">
+            {noDaysCount > 0
+              ? <><b>{noDaysCount} course{noDaysCount === 1 ? ' has' : 's have'} no class days,</b> so {noDaysCount === 1 ? 'it doesn\'t' : 'they don\'t'} show on any schedule. Edit {noDaysCount === 1 ? 'it' : 'each'} and choose the days.</>
+              : 'Every recurring course has class days.'}
+          </span>
+          <button type="button" onClick={() => setNoDaysOnly(!noDaysOnly)} className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[10px] font-black uppercase tracking-wider hover:bg-amber-100">
+            {noDaysOnly ? 'Show all courses' : 'Show them'}
           </button>
         </div>
       )}
@@ -424,6 +435,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                           </div>
                           {c.isRecurring ? (
                             <div className="flex flex-wrap gap-1">
+                              {c.frequency === 'Daily' && <span className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
+                              {missingDays(c) && <span className="text-[8px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
                               {c.daysOfWeek?.map(day => (
                                 <span key={day} className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
                               ))}
@@ -546,6 +559,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                     {c.isRecurring ? (
                       <div className="flex flex-wrap gap-1">
+                        {c.frequency === 'Daily' && <span className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
+                        {missingDays(c) && <span className="text-[8px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
                         {c.daysOfWeek?.map(day => (
                           <span key={day} className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
                         ))}
@@ -784,22 +799,28 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                   ) : (
                     <div className="space-y-[22px] animate-in slide-in-from-top-4 duration-300">
+                      <div className="grid grid-cols-1 md:grid-cols-2"><FormField label="Start Date" name="date" type="date" value={formData.date} onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))} /><div className="hidden md:block"></div></div>
                       <div className="space-y-3">
                         <label className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest block ml-1 italic opacity-60">Frequency</label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {['Daily', 'Weekly', 'Bi-weekly', 'Monthly'].map((freq) => (
-                            <button key={freq} type="button" onClick={() => { setFormData(p => { const nextFreq = freq as any; return { ...p, frequency: nextFreq, daysOfWeek: nextFreq === 'Daily' ? (p.daysOfWeek?.slice(0, 1) || []) : p.daysOfWeek }; }); }} className={`py-3 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${formData.frequency === freq ? 'bg-fb-textPrimary border-fb-textPrimary text-white shadow-lg' : 'bg-white border-fb-gray text-fb-textSecondary opacity-40 hover:opacity-100'}`}>{freq}</button>
+                            <button key={freq} type="button" onClick={() => { setFormData(p => { return { ...p, frequency: freq as Course['frequency'] }; }); }} className={`py-3 rounded-2xl border-2 font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 ${formData.frequency === freq ? 'bg-fb-textPrimary border-fb-textPrimary text-white shadow-lg' : 'bg-white border-fb-gray text-fb-textSecondary opacity-40 hover:opacity-100'}`}>{freq}</button>
                           ))}
                         </div>
                       </div>
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest block ml-1 italic opacity-60">Active Days (Mon-Fri)</label>
-                        <div className="grid grid-cols-5 gap-2">
-                          {DAYS.map(day => (
-                            <button key={day} type="button" onClick={() => toggleDayOfWeek(day)} className={`py-3 rounded-2xl border-2 font-black text-[10px] transition-all active:scale-95 flex-1 ${formData.daysOfWeek?.includes(day) ? 'bg-fb-blue border-fb-blue text-white shadow-lg' : 'bg-white border-fb-gray text-fb-textSecondary opacity-40 hover:opacity-100 hover:border-fb-border'}`}>{day}</button>
-                          ))}
+                      {formData.frequency === 'Daily' ? (
+                        <p className="text-xs font-bold text-fb-textSecondary ml-1">Every weekday (Mon–Fri) from the start date.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest block ml-1 italic opacity-60">Class Days</label>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2" role="group" aria-label="Class days">
+                            {DAYS.map(day => (
+                              <button key={day} type="button" aria-pressed={!!formData.daysOfWeek?.includes(day)} onClick={() => toggleDayOfWeek(day)} className={`py-3 rounded-2xl border-2 font-black text-[10px] transition-all active:scale-95 flex-1 ${formData.daysOfWeek?.includes(day) ? 'bg-fb-blue border-fb-blue text-white shadow-lg' : 'bg-white border-fb-gray text-fb-textSecondary opacity-40 hover:opacity-100 hover:border-fb-border'}`}>{day}</button>
+                            ))}
+                          </div>
+                          {missingDays(formData as Course) && <p className="text-[11px] font-semibold text-amber-700 ml-1">Choose at least one day, or the course won't appear on any schedule.</p>}
                         </div>
-                      </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6"><FormField label="Start Time" name="startTime" type="time" value={formData.startTime} onChange={(e) => setFormData(p => ({ ...p, startTime: e.target.value }))} /><FormField label="End Time" name="endTime" type="time" value={formData.endTime} onChange={(e) => setFormData(p => ({ ...p, endTime: e.target.value }))} /></div>
                     </div>
                   )}

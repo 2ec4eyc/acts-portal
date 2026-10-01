@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+import { occursOn } from '../lib/schedule';
 import type { Course } from '../types';
 
 export const CourseCalendar = ({ courses, onDayClick }: { courses: Course[], onDayClick: (date: string, courses: Course[]) => void }) => {
@@ -21,17 +22,8 @@ export const CourseCalendar = ({ courses, onDayClick }: { courses: Course[], onD
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
 
   const getCoursesForDay = (day: number) => {
-    const d = new Date(year, month, day);
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayOfWeekShort = d.toLocaleString('default', { weekday: 'short' });
-
-    return courses.filter(c => {
-      if (!c.isRecurring) {
-        return c.date === dateStr;
-      } else {
-        return c.daysOfWeek?.includes(dayOfWeekShort);
-      }
-    });
+    return courses.filter((c) => occursOn(c, dateStr));
   };
 
   return (
