@@ -2,7 +2,9 @@
 // Cloudflare R2 bucket: the browser uploads straight to it with a short-lived signed URL, and
 // viewing redirects to a short-lived signed URL. Without them, files are stored in Postgres
 // (receipt_files), sent through the API (2 MB max fits the 4.5 MB request limit).
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const MAX_RECEIPT_BYTES = 2 * 1024 * 1024;
@@ -42,3 +44,31 @@ export async function r2ObjectSize(key: string): Promise<number | null> {
     return null;
   }
 }
+
+export type BucketObject = { key: string; size: number; lastModified: Date };
+
+// Listing and deleting go through this object so tests can stand in for the bucket.
+export const bucket = {
+  /** Every object under a prefix (pages through ListObjectsV2, 1000 at a time). */
+  async list(prefix: string): Promise<BucketObject[]> {
+    const out: BucketObject[] = [];
+    let token: string | undefined;
+    do {
+      const page = await r2().send(new ListObjectsV2Command({ Bucket: env.R2_BUCKET, Prefix: prefix, ContinuationToken: token }));
+      for (const o of page.Contents ?? []) {
+        if (o.Key) out.push({ key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified ?? new Date(0) });
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+    return out;
+  },
+  /** Deletes objects, 1000 per request. Throws if any of them couldn't be deleted. */
+  async remove(keys: string[]): Promise<void> {
+    for (let i = 0; i < keys.length; i += 1000) {
+      const res = await r2().send(new DeleteObjectsCommand({
+        Bucket: env.R2_BUCKET, Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true },
+      }));
+      if (res.Errors?.length) throw new Error(`R2 delete failed for ${res.Errors.length} file(s): ${res.Errors[0].Message ?? res.Errors[0].Code}`);
+    }
+  },
+};

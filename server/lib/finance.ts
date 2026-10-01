@@ -5,6 +5,7 @@ import type { DbOrTx } from "./academics.js";
 import { can, type User } from "./auth.js";
 import { HttpError } from "./http.js";
 import { notify, type NewNotification } from "./notifications.js";
+import { assertRoom, checkAlerts } from "./receipt-storage.js";
 import { getSetting } from "./settings.js";
 import { MAX_RECEIPT_BYTES, RECEIPT_TYPES, r2DownloadUrl, r2ObjectSize, r2UploadUrl, storageMode } from "./storage.js";
 import {
@@ -271,6 +272,7 @@ export async function requestUpload(db: DbOrTx, user: User, input: z.infer<typeo
   if (user.role !== "student") throw new HttpError(403, "Only students upload receipts");
   await assertReceiptsOpen(db);
   await assertNotDuplicate(db, user.id, input.sha256);
+  await assertRoom(db, input.sizeBytes);
   if (storageMode() === "db") return { mode: "db" as const };
   const key = `receipts/${user.id}/${randomUUID()}`;
   return { mode: "r2" as const, key, url: await r2UploadUrl(key, input.contentType, input.sizeBytes) };
@@ -326,12 +328,14 @@ export async function submitReceipt(db: DbOrTx, user: User, input: z.infer<typeo
     fileKey = `r2:${input.key}`;
   }
   await assertNotDuplicate(db, user.id, sha256);
+  await assertRoom(db, input.sizeBytes);
   await db.insert(receiptUploads).values({
     id, studentId: user.id, invoiceId: input.invoiceId ?? null, amountClaimed: toMoney(input.amountClaimed),
     paidOn: input.paidOn, method: input.method, reference: input.reference ?? null,
     fileKey, contentType: input.contentType, sizeBytes: input.sizeBytes, sha256,
   });
   if (content) await db.insert(receiptFiles).values({ receiptId: id, content });
+  await checkAlerts(db);
   await notify(db, (await admins(db)).map((userId) => ({
     userId, kind: "receipt_submitted" as const, link: "billing", data: { receiptId: id, studentId: user.id },
     title: "Receipt to review",
@@ -361,7 +365,7 @@ export async function listReceipts(db: DbOrTx, f: z.infer<typeof ReceiptFilter>)
   return rows.map(({ r, firstName, lastName, invoiceNumber }) => ({
     id: r.id, studentId: r.studentId, studentName: `${firstName} ${lastName}`, invoiceId: r.invoiceId, invoiceNumber,
     amountClaimed: num(r.amountClaimed), paidOn: r.paidOn, method: r.method, reference: r.reference,
-    contentType: r.contentType, sizeBytes: r.sizeBytes, status: r.status, reviewNote: r.reviewNote,
+    contentType: r.contentType, sizeBytes: r.sizeBytes, status: r.status, reviewNote: r.reviewNote, fileDeletedAt: r.fileDeletedAt,
     reviewedBy: r.reviewedBy ? reviewers.get(r.reviewedBy) ?? "Deleted account" : null, reviewedAt: r.reviewedAt, createdAt: r.createdAt,
   }));
 }
@@ -373,6 +377,9 @@ export async function receiptFile(db: DbOrTx, user: User, id: string) {
   assertCanSeeStudent(user, r.studentId);
   const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" }[r.contentType] ?? "bin";
   const name = `receipt-${r.paidOn}.${ext}`;
+  if (r.fileDeletedAt) {
+    throw new HttpError(410, `This receipt's file was deleted on ${r.fileDeletedAt.toLocaleDateString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" })} to free space`);
+  }
   if (r.fileKey.startsWith("r2:")) return { mode: "r2" as const, url: await r2DownloadUrl(r.fileKey.slice(3), name) };
   const [file] = await db.select().from(receiptFiles).where(eq(receiptFiles.receiptId, id));
   if (!file) throw new HttpError(404, "File missing");

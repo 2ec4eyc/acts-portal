@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   customType, pgTable, pgEnum, uuid, text, smallint, integer, boolean, date, time,
-  timestamp, numeric, jsonb, bigserial, serial, primaryKey, unique, uniqueIndex, index, check,
+  timestamp, numeric, jsonb, bigint, bigserial, serial, primaryKey, unique, uniqueIndex, index, check,
 } from "drizzle-orm/pg-core";
 
 // ---------- Enums ----------
@@ -285,7 +285,7 @@ export const auditLog = pgTable("audit_log", {
 // ---------- Notifications, announcements, attendance alerts (phase 2) ----------
 export const notificationKind = pgEnum("notification_kind", [
   "attendance_warning", "attendance_escalation", "payment_reminder", "receipt_reviewed", "message",
-  "invoice_issued", "receipt_submitted",
+  "invoice_issued", "receipt_submitted", "storage_warning",
 ]);
 
 /** Per-person inbox (the bell): attendance alerts now; reminders and messages in later phases. */
@@ -388,9 +388,13 @@ export const receiptUploads = pgTable("receipt_uploads", {
   reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   reviewNote: text("review_note"),
+  /** Set when an admin deleted the file to free space; the receipt record stays. */
+  fileDeletedAt: timestamp("file_deleted_at", { withTimezone: true }),
+  fileDeletedBy: uuid("file_deleted_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("receipts_status_idx").on(t.status, t.createdAt),
+  index("receipts_stored_size_idx").on(t.sizeBytes).where(sql`${t.fileDeletedAt} IS NULL`),
   uniqueIndex("receipts_student_sha_uq").on(t.studentId, t.sha256),   // same file uploaded twice
   check("receipts_size_ck", sql`${t.sizeBytes} BETWEEN 1 AND 2097152`),
   check("receipts_type_ck", sql`${t.contentType} IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')`),
@@ -437,3 +441,15 @@ export const receiptFiles = pgTable("receipt_files", {
   receiptId: uuid("receipt_id").primaryKey().references(() => receiptUploads.id, { onDelete: "cascade" }),
   content: bytea("content").notNull(),
 });
+
+export const storageAlertLevel = pgEnum("storage_alert_level", ["ok", "warn", "full"]);
+
+/** One row: the last measurement of the receipt bucket, and the last alert level admins were told about. */
+export const storageStatus = pgTable("storage_status", {
+  id: smallint("id").primaryKey().default(1),
+  measuredBytes: bigint("measured_bytes", { mode: "number" }),
+  objectCount: integer("object_count"),
+  measuredAt: timestamp("measured_at", { withTimezone: true }),
+  orphansRemoved: integer("orphans_removed").notNull().default(0),
+  alertLevel: storageAlertLevel("alert_level").notNull().default("ok"),
+}, (t) => [check("storage_status_one_row_ck", sql`${t.id} = 1`)]);

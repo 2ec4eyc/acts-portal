@@ -31,6 +31,10 @@ import notifications from "./notifications/index.js";
 import notificationsRead from "./notifications/read.js";
 import offerings from "./offerings/index.js";
 import setting from "./settings/[key].js";
+import storageFiles from "./storage/files/index.js";
+import storageFilesDelete from "./storage/files/delete.js";
+import storage from "./storage/index.js";
+import storageRecount from "./storage/recount.js";
 import settingsPublic from "./settings/public.js";
 import transcript from "./transcripts/[id].js";
 import transcriptRevoke from "./transcripts/[id]/revoke.js";
@@ -95,6 +99,10 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["finance/receipts/upload-url", financeReceiptUploadUrl],
   ["finance/receipts/:id/file", financeReceiptFile],
   ["finance/receipts/:id/review", financeReceiptReview],
+  ["storage", storage],
+  ["storage/files", storageFiles],
+  ["storage/files/delete", storageFilesDelete],
+  ["storage/recount", storageRecount],
   ["cron/daily", cronDaily],
 ];
 

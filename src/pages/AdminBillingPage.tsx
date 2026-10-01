@@ -202,7 +202,9 @@ const ReceiptRow = ({ r }: { r: Receipt; key?: string }) => {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="font-bold text-fb-textPrimary">{r.studentName}</span>
         <span className="text-sm text-fb-textSecondary">claims <span className="font-black text-fb-textPrimary tabular-nums">{formatPeso(r.amountClaimed)}</span> · {METHOD_LABELS[r.method]} · paid {formatDay(r.paidOn)}{r.reference ? ` · ref ${r.reference}` : ''}{r.invoiceNumber ? ` · for ${r.invoiceNumber}` : ''}</span>
-        <button type="button" onClick={() => openReceipt(r.id).catch((e) => setError(e.message))} className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Eye size={12} /> View receipt</button>
+        {r.fileDeletedAt
+          ? <span className="ml-auto text-[10px] font-black uppercase text-fb-textSecondary">File deleted {formatDay(r.fileDeletedAt)}</span>
+          : <button type="button" onClick={() => openReceipt(r.id).catch((e) => setError(e.message))} className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Eye size={12} /> View receipt</button>}
       </div>
       {r.status === 'pending' ? (
         <div className="flex flex-wrap items-end gap-2">
