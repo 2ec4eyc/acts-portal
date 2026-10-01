@@ -370,12 +370,21 @@ export const setFileArchived = (id: string, archived: boolean) =>
   write(() => api(`materials/${id}`, { method: 'PATCH', body: { archived } }));
 export const deleteFile = (id: string) => write(() => api(`materials/${id}`, { method: 'DELETE' }));
 
-export interface MismatchedStudent {
-  studentId: string; studentName: string; studentNo: string | null; schoolType: 'day' | 'night' | null; cohort: string | null;
+export interface CourseStudent {
+  studentId: string; studentName: string; studentNo: string | null; schoolType: 'day' | 'night' | null;
+  yearLevel: number | null; cohort: string | null;
+  /** Added by an admin as an exception, rather than by the automatic Day/Night + year matching. */
+  manual: boolean;
+  /** Enrolled automatically from the other Day/Night school (e.g. before the course had one). */
+  wrongSchool: boolean;
   /** Why the student can't be removed from the course (a grade or attendance is recorded), or null. */
   cannotRemove: string | null;
 }
-/** Students in a course who aren't from its Day/Night school (admins). */
-export const fetchMismatched = (courseId: string) => api<MismatchedStudent[]>(`offerings/${courseId}/mismatched`);
+/** Everyone enrolled in a course (admins). */
+export const fetchCourseStudents = (courseId: string) =>
+  api<{ schoolType: 'day' | 'night' | null; students: CourseStudent[] }>(`offerings/${courseId}/students`);
+/** Adds students to a course by hand, whatever their school or year. */
+export const addStudentsToCourse = (courseId: string, studentIds: string[]) =>
+  write(() => api<{ added: number; skipped: { studentId: string; reason: string }[] }>(`offerings/${courseId}/enroll`, { method: 'POST', body: { studentIds } }));
 export const unenrollStudents = (courseId: string, studentIds: string[]) =>
   write(() => api<{ removed: number; skipped: { studentId: string; reason: string }[] }>(`offerings/${courseId}/unenroll`, { method: 'POST', body: { studentIds } }));

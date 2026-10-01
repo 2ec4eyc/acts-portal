@@ -34,8 +34,9 @@ import materials from "./materials/index.js";
 import me from "./me.js";
 import meSession from "./me-session.js";
 import offering from "./offerings/[id].js";
-import offeringMismatched from "./offerings/[id]/mismatched.js";
+import offeringEnroll from "./offerings/[id]/enroll.js";
 import offeringRestore from "./offerings/[id]/restore.js";
+import offeringStudents from "./offerings/[id]/students.js";
 import offeringUnenroll from "./offerings/[id]/unenroll.js";
 import notifications from "./notifications/index.js";
 import notificationsRead from "./notifications/read.js";
@@ -78,7 +79,8 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["offerings", offerings],
   ["offerings/:id", offering],
   ["offerings/:id/restore", offeringRestore],
-  ["offerings/:id/mismatched", offeringMismatched],
+  ["offerings/:id/students", offeringStudents],
+  ["offerings/:id/enroll", offeringEnroll],
   ["offerings/:id/unenroll", offeringUnenroll],
   ["grades", grades],
   ["grades/bulk", gradesBulk],

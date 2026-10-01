@@ -71,6 +71,13 @@
       "when": 1790838688453,
       "tag": "0009_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790859556996,
+      "tag": "0010_manual_enrollment",
+      "breakpoints": true
     }
   ]
 }
