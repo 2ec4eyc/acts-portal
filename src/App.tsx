@@ -12,6 +12,8 @@ import {
   CheckSquare,
   LogOut,
   Upload,
+  History,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 
@@ -22,11 +24,14 @@ import { ApiError, claimSession, hasSession, releaseSession, setSessionReplacedH
 import { fetchMyProfile } from './lib/data';
 import { auth } from './lib/firebase';
 import { live } from './lib/live';
+import { DEFAULT_FEATURES, fetchPublicSettings, type Features } from './lib/settings';
 import { AdminPanel } from './pages/AdminPanel';
 import { AttendanceTracker } from './pages/AttendanceTracker';
+import { AuditLogPage } from './pages/AuditLogPage';
 import { CourseManagementPage } from './pages/CourseManagementPage';
 import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { StudentCalendarView } from './pages/StudentCalendarView';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentGradesView } from './pages/StudentGradesView';
@@ -43,6 +48,7 @@ export const App = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [kickedOut, setKickedOut] = useState(false);
+  const [features, setFeatures] = useState<Features>(DEFAULT_FEATURES);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => { 
@@ -58,6 +64,9 @@ export const App = () => {
       } 
     });
   }, []);
+
+  // Feature switches (Settings page). Cached by the CDN; re-checked every 30 s and on tab focus.
+  useEffect(() => live(fetchPublicSettings, (s) => setFeatures(s.features), () => {}), []);
 
   // Another sign-in to this account replaced this tab's session: sign out here.
   useEffect(() => {
@@ -145,11 +154,13 @@ export const App = () => {
       case 'dashboard': return <StudentDashboard profile={profile} />;
       case 'profile': return <ProfilePage profile={profile} />;
       case 'records': return profile ? <StudentGradesView profile={profile} /> : null;
-      case 'calendar': return profile ? <StudentCalendarView profile={profile} /> : null;
+      case 'calendar': return profile && (!isStudent || features.studentSchedule) ? <StudentCalendarView profile={profile} /> : <StudentDashboard profile={profile} />;
       case 'admin': return (!isTeacher && hasAdminView) ? <AdminPanel profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'grades': return hasAdminView && profile ? (profile.role === 'teacher' ? <TeacherGradesView profile={profile} /> : <SubmitGrades adminProfile={profile} />) : <PermissionDeniedGate message="Admin Role Required" />;
       case 'courses': return isAdmin ? <CourseManagementPage profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'attendance': return isAdmin && profile ? <AttendanceTracker profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
+      case 'audit': return isAdmin ? <AuditLogPage /> : <PermissionDeniedGate message="Admin Role Required" />;
+      case 'settings': return isAdmin ? <SettingsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'upload_files': return isTeacher && profile ? <TeacherUploadFilesView profile={profile} /> : null;
       default: return <StudentDashboard profile={profile} />;
     }
@@ -176,7 +187,7 @@ export const App = () => {
             {isStudent && (
               <>
                 <SidebarItem icon={GraduationCap} label="Records" active={activePage === 'records'} onClick={() => {setActivePage('records'); setSidebarOpen(false)}} />
-                <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />
+                {features.studentSchedule && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
               </>
             )}
             {hasAdminView && (
@@ -191,6 +202,12 @@ export const App = () => {
                 {(isExecutive || isTeacher || isAdmin) && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
                 {isTeacher && <SidebarItem icon={Upload} label="Upload Files" active={activePage === 'upload_files'} onClick={() => {setActivePage('upload_files'); setSidebarOpen(false)}} />}
                 <SidebarItem icon={GraduationCap} label={isTeacher ? "Grades" : "Records"} active={activePage === 'grades'} onClick={() => {setActivePage('grades'); setSidebarOpen(false)}} />
+                {isAdmin && (
+                  <>
+                    <SidebarItem icon={History} label="Audit Log" active={activePage === 'audit'} onClick={() => {setActivePage('audit'); setSidebarOpen(false)}} />
+                    <SidebarItem icon={SettingsIcon} label="Settings" active={activePage === 'settings'} onClick={() => {setActivePage('settings'); setSidebarOpen(false)}} />
+                  </>
+                )}
               </>
             )}
           </nav>

@@ -17,6 +17,8 @@ export async function loadAll(db: NodePgDatabase<typeof s>, t: Transformed) {
   if (blocking.length) throw new Error(`Refusing to load:\n${blocking.join("\n")}`);
 
   await db.transaction(async (tx) => {
+    // A bulk import, not individual changes: don't fill the audit log with one row per imported row.
+    await tx.execute(sql`SELECT set_config('app.audit_off', 'on', true)`);
     const insert = async <T extends Tables>(table: T, rows: T["$inferInsert"][]) => {
       for (let i = 0; i < rows.length; i += 500) {
         await tx.insert(table).values(rows.slice(i, i + 500) as never).onConflictDoNothing();

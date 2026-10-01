@@ -2,7 +2,7 @@ import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { eq } from "drizzle-orm";
 import type { VercelRequest } from "@vercel/node";
-import { db } from "./db.js";
+import { db, setActor } from "./db.js";
 import { users } from "../db/schema.js";
 import { HttpError } from "./http.js";
 
@@ -37,7 +37,7 @@ export type Permission =
   | "users:read" | "users:write" | "users:admin"
   | "grades:write_own_offerings" | "grades:write_any"
   | "attendance:write" | "offerings:write" | "materials:write_own"
-  | "transcripts:issue";
+  | "transcripts:issue" | "settings:write" | "audit:read";
 
 const PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: [],
@@ -45,7 +45,8 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
   president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
   vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
   admin: ["users:read", "users:write", "users:admin", "grades:write_own_offerings", "grades:write_any",
-          "attendance:write", "offerings:write", "materials:write_own", "transcripts:issue"],
+          "attendance:write", "offerings:write", "materials:write_own", "transcripts:issue",
+          "settings:write", "audit:read"],
 };
 
 /** Firebase Admin Auth for this API (account creation, email changes, deletion). */
@@ -77,5 +78,6 @@ export async function requireUser(
     throw new HttpError(401, "Session replaced");
   }
   if (permission && !can(user, permission)) throw new HttpError(403, "Forbidden");
+  await setActor(user.id);
   return user;
 }

@@ -773,7 +773,7 @@ Each phase ships with:
 
 | Phase | Contents | Depends on |
 |---|---|---|
-| 1. Foundations | `withActor`, audit columns and triggers, Audit Log page; typed settings, `/api/settings/public`, feature toggles panel | — |
+| 1. Foundations ✅ | `withActor`, audit columns and triggers, Audit Log page; typed settings, `/api/settings/public`, feature toggles panel | — |
 | 2. Notifications & attendance alerts | `notifications`, bell/inbox UI, `attendance_alerts` in `saveAttendance`; announcements (create, target, pin, expire, feed) | 1 |
 | 3. Billing | invoices (single and batch), payments, allocations, ledger/statement, receipts (R2), review queue, student finance page, daily cron reminders | 1, 2 |
 | 4. Chat | conversations, messages, Ably token and publish, student chat and admin inbox, polling fallback | 1, 2 |

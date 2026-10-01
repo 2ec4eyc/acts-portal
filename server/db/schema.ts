@@ -254,16 +254,30 @@ export const transcripts = pgTable("transcripts", {
 }, (t) => [index("transcripts_student_idx").on(t.studentId)]);
 
 export const appSettings = pgTable("app_settings", {
-  key: text("key").primaryKey(),                           // e.g. "show_student_schedule"
+  key: text("key").primaryKey(),                           // "features"; schemas in server/lib/settings.ts
   value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
 });
 
+// Append-only (a trigger refuses UPDATE and DELETE). Rows come from two places: the audit_row_change()
+// trigger on sensitive tables (table_name, op, old, new; migration 0005) and explicit events written
+// by the API ("transcript.issued", "system.reset"). actor_id has no foreign key on purpose: deleting
+// an account must not erase or rewrite who did what.
 export const auditLog = pgTable("audit_log", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
-  action: text("action").notNull(),                        // "user.role_changed"
+  actorId: uuid("actor_id"),
+  action: text("action").notNull(),                        // "grades.update", "transcript.issued"
   entity: text("entity").notNull(),
   entityId: text("entity_id").notNull(),
   data: jsonb("data"),
+  tableName: text("table_name"),
+  op: text("op"),                                          // INSERT | UPDATE | DELETE
+  old: jsonb("old"),
+  new: jsonb("new"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("audit_entity_idx").on(t.entity, t.entityId)]);
+}, (t) => [
+  index("audit_entity_idx").on(t.entity, t.entityId),
+  index("audit_at_idx").on(t.at),
+  index("audit_actor_idx").on(t.actorId, t.at),
+]);
