@@ -12,6 +12,8 @@ export const OfferingInput = z.strictObject({
   yearLevel: z.union([z.literal(1), z.literal(2)]),
   semester: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   schoolYear: z.string().regex(/^\d{4}-\d{4}$/, "expected YYYY-YYYY"),
+  /** Credit units (transcript). Optional on create: defaults to 3. */
+  units: z.number().positive().max(99).multipleOf(0.5).optional(),
   schedule: z.strictObject({
     startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
     startTime: time,
@@ -40,6 +42,7 @@ export async function listOfferings(db: DbOrTx, opts: { ids?: string[]; includeD
       schoolYear: schoolYears.label,
       instructorId: courseOfferings.instructorId,
       instructorLabel: courseOfferings.instructorLabel,
+      units: courseOfferings.units,
       instructorFirstName: users.firstName,
       instructorLastName: users.lastName,
       deletedAt: courseOfferings.deletedAt,
@@ -64,6 +67,7 @@ export async function listOfferings(db: DbOrTx, opts: { ids?: string[]; includeD
     const m = byOffering.get(r.id) ?? [];
     return {
       ...r,
+      units: Number(r.units),
       instructorFirstName: r.instructorId ? instructorFirstName : null,
       instructorLastName: r.instructorId ? instructorLastName : null,
       /** The instructor account's name, or the migrated display text when there's no account. */
@@ -107,6 +111,7 @@ export async function createOffering(db: DbOrTx, input: OfferingInput): Promise<
     termId: await termId(db, input.schoolYear, input.semester),
     yearLevel: input.yearLevel,
     instructorId: input.instructorId,
+    ...(input.units !== undefined && { units: String(input.units) }),
   }).returning({ id: courseOfferings.id });
   await writeMeetings(db, row.id, input.schedule);
   return row.id;
@@ -119,6 +124,7 @@ export async function updateOffering(db: DbOrTx, id: string, input: Partial<Offe
   const patch: Partial<typeof courseOfferings.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.courseId = await courseId(db, input.name);
   if (input.yearLevel !== undefined) patch.yearLevel = input.yearLevel;
+  if (input.units !== undefined) patch.units = String(input.units);
   if (input.instructorId !== undefined) {
     patch.instructorId = input.instructorId;
     if (input.instructorId) patch.instructorLabel = null; // an account replaces any migrated display name

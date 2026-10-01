@@ -72,6 +72,8 @@ export interface Course {
   yearLevel: '1st Year' | '2nd Year';
   semester: '1st Semester' | '2nd Semester' | '3rd Semester';
   schoolYear?: string;
+  /** Credit units shown on the transcript (default 3). */
+  units?: number;
   createdAt: any;
   archivedAt?: any;
   archivedBy?: string;

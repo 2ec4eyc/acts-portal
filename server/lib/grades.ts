@@ -29,6 +29,7 @@ export async function listGrades(db: DbOrTx, filter: { studentId?: string; stude
       semester: terms.semester,
       schoolYear: schoolYears.label,
       instructorId: courseOfferings.instructorId,
+      units: courseOfferings.units,
       offeringArchived: sql<boolean>`${courseOfferings.deletedAt} IS NOT NULL`,
       studentId: enrollments.studentId,
       studentFirstName: users.firstName,
@@ -52,8 +53,9 @@ export async function listGrades(db: DbOrTx, filter: { studentId?: string; stude
       filter.offeringId ? eq(enrollments.offeringId, filter.offeringId) : undefined,
     ))
     .orderBy(asc(schoolYears.label), asc(courseOfferings.yearLevel), asc(terms.semester), asc(courses.name), asc(users.lastName));
-  return rows.map(({ studentFirstName, studentLastName, value, isIncomplete, ...r }) => ({
+  return rows.map(({ studentFirstName, studentLastName, value, isIncomplete, units, ...r }) => ({
     ...r,
+    units: Number(units),
     studentName: `${studentFirstName} ${studentLastName}`,
     value: value === null ? null : Number(value),
     isIncomplete: isIncomplete ?? false,

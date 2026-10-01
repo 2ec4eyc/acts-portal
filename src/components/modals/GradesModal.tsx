@@ -8,12 +8,14 @@ import {
   RotateCcw,
   Clock,
   ArrowDown,
+  FileCheck2,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 import { HistoryModal } from './HistoryModal';
 import { StudentProfileViewModal } from './StudentProfileViewModal';
+import { TranscriptModal } from './TranscriptModal';
 import { PermissionDeniedGate } from '../PermissionDeniedGate';
 import { ApiError } from '../../lib/api';
 import { fetchAttendance, fetchCourses, fetchHistory, fetchUser, resetGrade, setGrade } from '../../lib/data';
@@ -31,6 +33,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
   const [yearLevelFilter, setYearLevelFilter] = useState(propStudent.yearLevel || '1st Year' as '1st Year' | '2nd Year');
   const [showHistory, setShowHistory] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState([] as any[]);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
   const [confirmResetId, setConfirmResetId] = useState<string | null>(null);
@@ -227,6 +230,12 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                   className="px-3 py-1.5 bg-white text-fb-blue hover:bg-fb-blue hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest border border-fb-blue/20 shadow-sm transition-all flex items-center gap-1.5"
                 >
                   <ArrowDown size={10} /> Download
+                </button>
+                <button 
+                  onClick={() => setShowTranscript(true)}
+                  className="px-3 py-1.5 bg-white text-fb-blue hover:bg-fb-blue hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest border border-fb-blue/20 shadow-sm transition-all flex items-center gap-1.5"
+                >
+                  <FileCheck2 size={10} /> Transcript
                 </button>
               </div>
             </div>
@@ -588,6 +597,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
       </div>
       {showHistory && <HistoryModal history={history} onClose={() => setShowHistory(false)} />}
       {showProfile && <StudentProfileViewModal student={student} onClose={() => setShowProfile(false)} />}
+      {showTranscript && <TranscriptModal student={student} canIssue={adminProfile.role === 'admin'} onClose={() => setShowTranscript(false)} />}
 
       {/* Hidden PDF Template */}
       <div id="student-records-pdf-container" style={{ position: 'absolute', top: 0, left: '-9999px' }}>

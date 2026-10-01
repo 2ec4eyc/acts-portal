@@ -29,6 +29,13 @@
       "when": 1790791827814,
       "tag": "0003_instructor_label",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790815794010,
+      "tag": "0004_transcripts",
+      "breakpoints": true
     }
   ]
 }

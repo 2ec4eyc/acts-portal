@@ -7,7 +7,7 @@ import type { Db } from "./db.js";
 import { HttpError } from "./http.js";
 import { SelfProfileUpdate, writeProfileFields } from "./profiles.js";
 import {
-  auditLog, cohorts, courseOfferings, courses, enrollments, gradeChanges, materials,
+  auditLog, cohorts, courseOfferings, courses, enrollments, gradeChanges, materials, transcripts,
   studentRecords, studentYearLevels, users,
 } from "../db/schema.js";
 
@@ -162,6 +162,8 @@ export async function deleteAccount(db: Db, target: UserRow) {
   if (target.status !== "archived") throw new HttpError(409, "Archive the account before deleting it");
   const [upload] = await db.select({ id: materials.id }).from(materials).where(eq(materials.uploadedBy, target.id)).limit(1);
   if (upload) throw new HttpError(409, "This account uploaded course materials; delete or reassign those first");
+  const [issued] = await db.select({ id: transcripts.id }).from(transcripts).where(eq(transcripts.studentId, target.id)).limit(1);
+  if (issued) throw new HttpError(409, "This student has issued transcripts, which are kept as official records");
   await db.transaction(async (tx) => {
     await tx.delete(enrollments).where(eq(enrollments.studentId, target.id));
     await tx.delete(users).where(eq(users.id, target.id));

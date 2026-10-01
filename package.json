@@ -22,6 +22,7 @@
     "admin:grant": "tsx scripts/ops/admin-grant.ts",
     "db:backup": "tsx scripts/ops/backup.ts",
     "db:restore": "tsx scripts/ops/restore.ts",
+    "db:reset": "tsx scripts/ops/reset.ts",
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "seed:local": "node scripts/seed-emulators.mjs && DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5433/acts} FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 MIGRATION_DATA_DIR=.local/migration-data sh -c 'drizzle-kit migrate && tsx scripts/migrate/export.ts && tsx scripts/migrate/load.ts'"
   },
@@ -35,6 +36,7 @@
     "jspdf": "^4.2.0",
     "lucide-react": "^0.563.0",
     "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-easy-crop": "^5.2.0",
@@ -44,6 +46,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@vercel/node": "^16.0.2",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.6.1",
