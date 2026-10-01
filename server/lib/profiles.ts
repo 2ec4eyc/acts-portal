@@ -1,7 +1,8 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./db.js";
 import type { DbOrTx } from "./academics.js";
+import { assertRoom, checkAlerts } from "./receipt-storage.js";
 import { cohorts, schoolYears, studentRecords, studentYearLevels, userProfiles, users } from "../db/schema.js";
 
 type UserStatus = (typeof users.$inferSelect)["status"];
@@ -118,6 +119,15 @@ const USER_COLUMNS = ["firstName", "middleName", "lastName", "photoUrl", "contac
 
 /** Writes profile fields, splitting them between `users` and `user_profiles` (call inside a transaction). */
 export async function writeProfileFields(db: DbOrTx, userId: string, update: SelfProfileUpdate) {
+  // A new or larger photo counts toward the storage limit like any other upload.
+  let photoChanged = false;
+  if (typeof update.photoUrl === "string") {
+    const [cur] = await db.select({ len: sql<number>`coalesce(octet_length(${users.photoUrl}), 0)::int`, same: sql<boolean>`${users.photoUrl} IS NOT DISTINCT FROM ${update.photoUrl}` })
+      .from(users).where(eq(users.id, userId));
+    photoChanged = !cur?.same;
+    const growth = Buffer.byteLength(update.photoUrl) - (cur?.len ?? 0);
+    if (photoChanged && growth > 0) await assertRoom(db, growth);
+  }
   const userPatch: Partial<typeof users.$inferInsert> = {};
   const profilePatch: Partial<typeof userProfiles.$inferInsert> = {};
   for (const [key, value] of Object.entries(update)) {
@@ -126,6 +136,7 @@ export async function writeProfileFields(db: DbOrTx, userId: string, update: Sel
     else (profilePatch as Record<string, unknown>)[key] = value;
   }
   if (Object.keys(userPatch).length) await db.update(users).set(userPatch).where(eq(users.id, userId));
+  if (photoChanged) await checkAlerts(db);
   if (Object.keys(profilePatch).length) {
     await db.insert(userProfiles).values({ userId, ...profilePatch })
       .onConflictDoUpdate({ target: userProfiles.userId, set: profilePatch });

@@ -126,6 +126,7 @@ export async function uploadMaterial(db: DbOrTx, user: User, input: z.infer<type
     if (content.length === 0) throw new HttpError(400, "data: empty file");
     if (content.length > MAX_FILE_BYTES) throw new HttpError(413, "File must be under 800 KB");
     sizeBytes = content.length;
+    await assertRoom(db, sizeBytes);
   } else if (input.key !== undefined) {
     if (storageMode() !== "r2") throw new HttpError(400, "key: file storage isn't set up");
     if (!input.key.startsWith(`materials/${input.offeringId}/`)) throw new HttpError(400, "key: not an upload for this course");
@@ -143,7 +144,7 @@ export async function uploadMaterial(db: DbOrTx, user: User, input: z.infer<type
     eventDate: input.eventDate, eventTime: input.eventTime, instructions: input.instructions,
   }).returning({ id: materials.id });
   if (content) await db.insert(materialFiles).values({ materialId: m.id, content });
-  if (fileKey) await checkAlerts(db);
+  if (fileKey || content) await checkAlerts(db);
 
   // Tell the course's students.
   const students = await db.select({ id: enrollments.studentId }).from(enrollments)

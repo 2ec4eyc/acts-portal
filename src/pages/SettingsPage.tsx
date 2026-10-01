@@ -129,7 +129,7 @@ export const SettingsPage = ({ tab: initialTab = 'general' }: { tab?: SettingsTa
     <div className="space-y-6 pb-10">
       <div>
         <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Settings</h1>
-        <p className="text-sm text-fb-textSecondary">Portal features, alerts, receipt storage and the audit log. Feature changes reach all users within about a minute.</p>
+        <p className="text-sm text-fb-textSecondary">Portal features, alerts, file storage and the audit log. Feature changes reach all users within about a minute.</p>
       </div>
       <div role="tablist" aria-label="Settings sections" className="flex flex-wrap gap-2">
         {TABS.map(([id, name]) => (
