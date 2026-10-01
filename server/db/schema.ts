@@ -281,3 +281,55 @@ export const auditLog = pgTable("audit_log", {
   index("audit_at_idx").on(t.at),
   index("audit_actor_idx").on(t.actorId, t.at),
 ]);
+
+// ---------- Notifications, announcements, attendance alerts (phase 2) ----------
+export const notificationKind = pgEnum("notification_kind", [
+  "attendance_warning", "attendance_escalation", "payment_reminder", "receipt_reviewed", "message",
+]);
+
+/** Per-person inbox (the bell): attendance alerts now; reminders and messages in later phases. */
+export const notifications = pgTable("notifications", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: notificationKind("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  link: text("link"),                                       // in-app page, e.g. "records"
+  data: jsonb("data"),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("notifications_user_idx").on(t.userId, t.readAt, t.createdAt)]);
+
+/** One row per absence threshold crossed; the key makes each alert go out exactly once. */
+export const attendanceAlerts = pgTable("attendance_alerts", {
+  studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  offeringId: uuid("offering_id").notNull().references(() => courseOfferings.id, { onDelete: "cascade" }),
+  threshold: smallint("threshold").notNull(),
+  absences: smallint("absences").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.studentId, t.offeringId, t.threshold] })]);
+
+/** Posted by admins to roles, optionally narrowed to one batch or one course. Not copied per reader. */
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  audienceRoles: userRole("audience_roles").array().notNull(),
+  cohortId: integer("cohort_id").references(() => cohorts.id, { onDelete: "cascade" }),
+  offeringId: uuid("offering_id").references(() => courseOfferings.id, { onDelete: "cascade" }),
+  pinned: boolean("pinned").notNull().default(false),
+  publishAt: timestamp("publish_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (t) => [
+  index("announcements_publish_idx").on(t.publishAt),
+  check("announcements_audience_ck", sql`cardinality(${t.audienceRoles}) > 0`),
+  check("announcements_expiry_ck", sql`${t.expiresAt} IS NULL OR ${t.expiresAt} > ${t.publishAt}`),
+]);
+
+export const announcementReads = pgTable("announcement_reads", {
+  announcementId: uuid("announcement_id").notNull().references(() => announcements.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.announcementId, t.userId] })]);
