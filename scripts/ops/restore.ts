@@ -39,6 +39,11 @@ try {
     await client.query(`SELECT setval(pg_get_serial_sequence($1, $2), coalesce((SELECT max("${column_name}") FROM "${table_name}"), 0) + 1, false)`,
       [`"${table_name}"`, column_name]);
   }
+  // Invoice numbers continue after the highest restored one.
+  if ((await client.query("SELECT to_regclass('invoice_number_seq') AS seq")).rows[0].seq) {
+    await client.query(`SELECT setval('invoice_number_seq', greatest(1, coalesce((SELECT max(split_part(number, '-', 3)::int) FROM invoices), 0)),
+      (SELECT count(*) > 0 FROM invoices))`);
+  }
   await client.query("COMMIT");
   console.log("Restore complete.");
 } catch (err) {

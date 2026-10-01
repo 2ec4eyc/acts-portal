@@ -42,6 +42,7 @@ console.log(`Backup saved to ${file}`);
 // 2. Empty every table in one transaction (schema and drizzle migration history stay).
 const tables = await tablesInLoadOrder(pool);
 await pool.query(`TRUNCATE ${tables.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE`);
+await pool.query("DO $$ BEGIN IF to_regclass('invoice_number_seq') IS NOT NULL THEN ALTER SEQUENCE invoice_number_seq RESTART; END IF; END $$");
 console.log(`Emptied ${tables.length} tables.`);
 
 // 3. Delete every Firebase login.

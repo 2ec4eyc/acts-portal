@@ -6,6 +6,19 @@ import attendance from "./attendance/index.js";
 import audit from "./audit/index.js";
 import gradesBulk from "./grades/bulk.js";
 import grades from "./grades/index.js";
+import cronDaily from "./cron/daily.js";
+import financeInvoice from "./finance/invoices/[id].js";
+import financeInvoiceRemind from "./finance/invoices/[id]/remind.js";
+import financeInvoices from "./finance/invoices/index.js";
+import financePayment from "./finance/payments/[id].js";
+import financePayments from "./finance/payments/index.js";
+import financeReceiptFile from "./finance/receipts/[id]/file.js";
+import financeReceiptReview from "./finance/receipts/[id]/review.js";
+import financeReceipts from "./finance/receipts/index.js";
+import financeReceiptUploadUrl from "./finance/receipts/upload-url.js";
+import financeStatement from "./finance/students/[id]/statement.js";
+import financeStudents from "./finance/students/index.js";
+import meFinance from "./me/finance.js";
 import health from "./health.js";
 import material from "./materials/[id].js";
 import materialFile from "./materials/[id]/file.js";
@@ -70,6 +83,19 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["announcements", announcements],
   ["announcements/:id", announcement],
   ["announcements/:id/read", announcementRead],
+  ["me/finance", meFinance],
+  ["finance/students", financeStudents],
+  ["finance/students/:id/statement", financeStatement],
+  ["finance/invoices", financeInvoices],
+  ["finance/invoices/:id", financeInvoice],
+  ["finance/invoices/:id/remind", financeInvoiceRemind],
+  ["finance/payments", financePayments],
+  ["finance/payments/:id", financePayment],
+  ["finance/receipts", financeReceipts],
+  ["finance/receipts/upload-url", financeReceiptUploadUrl],
+  ["finance/receipts/:id/file", financeReceiptFile],
+  ["finance/receipts/:id/review", financeReceiptReview],
+  ["cron/daily", cronDaily],
 ];
 
 /** Finds the handler for a path like "users/abc/history", preferring static segments. */
