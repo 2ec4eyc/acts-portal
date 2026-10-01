@@ -1,8 +1,8 @@
-// How much space uploaded files take (payment receipts and course files), the upload limit, alerts to
-// admins, and freeing space (receipt files only).
+// How much space uploaded files take (payment receipts, course files and profile photos), the upload
+// limit that stops every upload, alerts to admins, and freeing space (receipt files only).
 //
 // Tracked usage is the sum of size_bytes of receipts and course files still stored (exact: R2 uploads
-// are size-checked with HEAD). In R2 mode the bucket is also listed by the daily job (or "Recount now"),
+// are size-checked with HEAD), plus profile photos, which are always kept in the database. In R2 mode the bucket is also listed by the daily job (or "Recount now"),
 // which deletes orphans (uploads that were never submitted) and saves the real total; the larger of the
 // two counts against the limit. Sizes use 1 GB = 1,000,000,000 bytes, the smaller of the two common
 // definitions, so the limit is never more generous than the provider's.
@@ -53,16 +53,22 @@ export async function usage(db: DbOrTx) {
   const [deleted] = await db.select({ files: sql<number>`count(*)::int` }).from(receiptUploads).where(isNotNull(receiptUploads.fileDeletedAt));
   const [course] = await db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${materials.sizeBytes}), 0)::bigint` })
     .from(materials).where(courseFilesHere());
+  const [photos] = await db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(octet_length(${users.photoUrl})), 0)::bigint` })
+    .from(users).where(isNotNull(users.photoUrl));
   const s = await status(db);
-  const trackedBytes = Number(tracked.bytes) + Number(course.bytes);
+  const photoBytes = Number(photos.bytes);
+  const fileBytes = Number(tracked.bytes) + Number(course.bytes);
+  const trackedBytes = fileBytes + photoBytes;
   const measuredBytes = mode === "r2" && s.measuredAt ? s.measuredBytes ?? 0 : null;
-  const usedBytes = Math.max(trackedBytes, measuredBytes ?? 0);
+  // The bucket count covers receipts and course files; photos are in the database either way.
+  const usedBytes = Math.max(fileBytes, measuredBytes ?? 0) + photoBytes;
   const warnBytes = Math.round(rules.warnAtGb * GB), limitBytes = Math.round(rules.limitGb * GB);
-  // "Full" once another largest-size receipt wouldn't fit, so the upload that reaches it raises the alert.
+  // "Full" once another 2 MB file wouldn't fit, so the upload that reaches it raises the alert.
   const level: Level = usedBytes + MAX_RECEIPT_BYTES > limitBytes ? "full" : usedBytes >= warnBytes ? "warn" : "ok";
   return {
     mode, usedBytes, trackedBytes, files: tracked.files, deletedFiles: deleted.files,
     courseFiles: { files: course.files, bytes: Number(course.bytes) },
+    profilePhotos: { files: photos.files, bytes: photoBytes },
     byStatus: Object.fromEntries(["pending", "approved", "rejected"].map((st) => {
       const r = byStatus.find((b) => b.status === st);
       return [st, { files: r?.files ?? 0, bytes: Number(r?.bytes ?? 0) }];
@@ -73,12 +79,12 @@ export async function usage(db: DbOrTx) {
   };
 }
 
-/** Refuses an upload that would take receipt storage past the limit. */
+/** Refuses any upload (receipt, course file or profile photo) that would take storage past the limit. */
 export async function assertRoom(db: DbOrTx, sizeBytes: number) {
   const u = await usage(db);
   // No alert from here: this request fails, so anything it wrote would be rolled back.
   if (u.usedBytes + sizeBytes > u.limitBytes) {
-    throw new HttpError(507, "Receipt storage is full, so receipts can't be uploaded right now. Please tell the school office.");
+    throw new HttpError(507, "Storage is full, so files can't be uploaded right now. Please tell the school office.");
   }
 }
 
@@ -91,8 +97,8 @@ export async function checkAlerts(db: DbOrTx): Promise<Level> {
   if (RANK[u.level] < RANK[row.level]) return u.level;           // went down: re-arm silently
   const where = u.mode === "r2" ? "Cloudflare R2" : "the database";
   const message = u.level === "full"
-    ? { title: "Receipt storage is full", body: `Receipt files use ${fmt(u.usedBytes)} of the ${fmt(u.limitBytes)} limit (${where}). Students can't upload receipts until space is freed or the limit is raised in Settings → Storage.` }
-    : { title: "Receipt storage is almost full", body: `Receipt files use ${fmt(u.usedBytes)}; uploads stop at ${fmt(u.limitBytes)} (${where}). Free space in Settings → Storage.` };
+    ? { title: "File storage is full", body: `Uploaded files use ${fmt(u.usedBytes)} of the ${fmt(u.limitBytes)} limit (${where}). All uploads (receipts, course files and profile photos) are stopped until space is freed or the limit is raised in Settings → Storage.` }
+    : { title: "File storage is almost full", body: `Uploaded files use ${fmt(u.usedBytes)}; all uploads stop at ${fmt(u.limitBytes)} (${where}). Free space in Settings → Storage.` };
   const admins = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), eq(users.status, "active")));
   await notify(db, admins.map((a) => ({
     userId: a.id, kind: "storage_warning" as const, link: "settings/storage", ...message,

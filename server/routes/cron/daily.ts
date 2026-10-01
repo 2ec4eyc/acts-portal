@@ -13,7 +13,7 @@ const authorized = (header: string | undefined) => {
 };
 
 // GET /api/cron/daily: run by Vercel Cron once a day (vercel.json) with Authorization: Bearer $CRON_SECRET.
-// Payment reminders, cleanup of old read notifications, then the receipt storage check (bucket
+// Payment reminders, cleanup of old read notifications, then the file storage check (bucket
 // recount, orphan cleanup, alerts). Every step is safe to repeat.
 export default methods({
   GET: async (req, res) => {

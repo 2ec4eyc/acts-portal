@@ -33,16 +33,16 @@ const UsageCard = ({ u, onRecount, recounting }: { u: StorageUsage; onRecount: (
           <p className="text-sm font-bold text-fb-textSecondary">of {formatBytes(u.limitBytes)} limit</p>
           <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${style.chip}`}>{style.label}</span>
         </div>
-        <div className="relative h-3 rounded-full bg-fb-gray overflow-visible" role="meter" aria-label="Receipt storage used"
+        <div className="relative h-3 rounded-full bg-fb-gray overflow-visible" role="meter" aria-label="File storage used"
           aria-valuemin={0} aria-valuemax={u.limitBytes} aria-valuenow={u.usedBytes} aria-valuetext={`${formatBytes(u.usedBytes)} of ${formatBytes(u.limitBytes)}`}>
           <div className={`h-full rounded-full ${style.bar}`} style={{ width: pct(u.usedBytes), minWidth: u.usedBytes ? 4 : 0 }} />
           <div className="absolute -top-1 -bottom-1 w-0.5 bg-amber-600" style={{ left: pct(u.warnBytes) }} title={`Warning at ${formatBytes(u.warnBytes)}`} />
         </div>
         <p className="text-xs text-fb-textSecondary">
-          Admins are notified at {formatBytes(u.warnBytes)} (amber mark). At {formatBytes(u.limitBytes)} students can't upload receipts until space is freed or the limit is raised.
+          Admins are notified at {formatBytes(u.warnBytes)} (amber mark). At {formatBytes(u.limitBytes)} all uploads stop (receipts, course files and profile photos) until space is freed or the limit is raised.
           {u.mode === 'r2' && ` Cloudflare R2's free tier is ${formatBytes(FREE_TIER_BYTES)}.`}
         </p>
-        <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+        <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-sm">
           {(['pending', 'approved', 'rejected'] as const).map((s) => (
             <div key={s} className="rounded-xl border border-fb-border p-3">
               <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">{s} receipts</dt>
@@ -54,6 +54,10 @@ const UsageCard = ({ u, onRecount, recounting }: { u: StorageUsage; onRecount: (
             <dd className="font-black tabular-nums">{u.courseFiles.files} <span className="font-semibold text-fb-textSecondary">· {formatBytes(u.courseFiles.bytes)}</span></dd>
           </div>
           <div className="rounded-xl border border-fb-border p-3">
+            <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">Profile photos</dt>
+            <dd className="font-black tabular-nums">{u.profilePhotos.files} <span className="font-semibold text-fb-textSecondary">· {formatBytes(u.profilePhotos.bytes)}</span></dd>
+          </div>
+          <div className="rounded-xl border border-fb-border p-3">
             <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">Receipt files deleted</dt>
             <dd className="font-black tabular-nums">{u.deletedFiles}</dd>
           </div>
@@ -61,7 +65,7 @@ const UsageCard = ({ u, onRecount, recounting }: { u: StorageUsage; onRecount: (
         {u.mode === 'r2' ? (
           <div className="flex flex-wrap items-center gap-3 text-xs text-fb-textSecondary">
             <span>
-              Stored in <b>Cloudflare R2</b>.{' '}
+              Receipts and course files are stored in <b>Cloudflare R2</b>; profile photos are in the database.{' '}
               {u.measured?.at
                 ? <>Bucket last checked {formatWhen(u.measured.at)}: {u.measured.objects} files, {formatBytes(u.measured.bytes ?? 0)}{u.measured.orphansRemoved ? `; ${u.measured.orphansRemoved} unfinished upload${u.measured.orphansRemoved === 1 ? '' : 's'} removed` : ''}. Checked automatically every morning.</>
                 : 'The bucket hasn\'t been checked yet; it is checked automatically every morning.'}
@@ -72,7 +76,7 @@ const UsageCard = ({ u, onRecount, recounting }: { u: StorageUsage; onRecount: (
           </div>
         ) : (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            Receipts are stored in the <b>database</b> because Cloudflare R2 isn't set up. The database's free plan has about 0.5 GB for everything, so set a low limit here (for example warn at 0.2 GB, stop at 0.3 GB) or set up R2.
+            Receipts and course files are stored in the <b>database</b> because Cloudflare R2 isn't set up. The database's free plan has about 0.5 GB for everything, so set a low limit here (for example warn at 0.2 GB, stop at 0.3 GB) or set up R2.
           </p>
         )}
       </div>
@@ -105,7 +109,7 @@ const LimitsCard = ({ onSaved }: { onSaved: () => void }) => {
         </label>
         <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
           <input type="number" className={num} min={0.1} max={1000} step={0.1} required value={form.limitGb} onChange={(e) => setForm({ ...form, limitGb: gb(e.target.value) })} />
-          GB: stop receipt uploads
+          GB: stop all uploads
         </label>
         <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
           <input type="number" className={num} min={1} max={20} step={1} required value={form.deleteApprovedAfterYears} onChange={(e) => setForm({ ...form, deleteApprovedAfterYears: Number(e.target.value) })} />

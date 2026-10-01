@@ -114,7 +114,7 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
       setSuccessMessage("Your profile has been updated and saved.");
       setIsEditing(false);
     } catch (err) {
-      toast.error("Failed to update profile.");
+      toast.error(`Failed to update profile. ${(err as Error).message}`);
     } finally {
       setSaving(false);
     }

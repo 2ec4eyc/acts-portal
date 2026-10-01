@@ -1,4 +1,4 @@
-// Receipt storage: usage, the upload limit, alerts to admins, deleting files, and the R2 recount.
+// File storage: usage, the upload limit, alerts to admins, deleting files, and the R2 recount.
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -170,16 +170,16 @@ describe("R2: recount, orphans, alerts and the upload limit", () => {
     objects = [{ key, size: 7.2e9, lastModified: old }];
     assert.equal((await cron()).body.storage.level, "warn");
     assert.equal((await cron()).body.storage.level, "warn");
-    assert.deepEqual(await storageAlerts(), ["Receipt storage is almost full"]);
+    assert.deepEqual(await storageAlerts(), ["File storage is almost full"]);
     assert.equal((await uploadUrl()).status, 200, "still room");
 
     objects = [{ key, size: 9e9 - 500, lastModified: old }];
     assert.equal((await cron()).body.storage.level, "full");
     const refused = await uploadUrl();
     assert.equal(refused.status, 507);
-    assert.match(refused.body.error, /Receipt storage is full/);
+    assert.match(refused.body.error, /Storage is full/);
     await cron();
-    assert.deepEqual(await storageAlerts(), ["Receipt storage is almost full", "Receipt storage is full"]);
+    assert.deepEqual(await storageAlerts(), ["File storage is almost full", "File storage is full"]);
     const body = (await f.pool.query("SELECT body FROM notifications WHERE kind = 'storage_warning' ORDER BY created_at DESC LIMIT 1")).rows[0].body;
     assert.match(body, /9\.00 GB of the 9\.00 GB limit \(Cloudflare R2\)/);
   });
