@@ -2,10 +2,10 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { route, call, setup, PROJECT, type Fixture } from "./helpers.js";
+import { route, call, setup, signIn, PROJECT, type Fixture } from "./helpers.js";
 
 let f: Fixture;
 const run = (script: string, args: string[]) =>
@@ -80,4 +80,57 @@ describe("backup and restore", () => {
     assert.throws(() => run("restore", ["--file", path.join(dir, file)]), /not empty/);
   });
 });
-void PROJECT;
+
+describe("reset", () => {
+  const reset = (args: string[], input: string) =>
+    execFileSync("npx", ["tsx", "scripts/ops/reset.ts", ...args], { env: process.env, input, stdio: "pipe" }).toString();
+  const emulatorLogins = async () => {
+    const r = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:query`, {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer owner" }, body: "{}",
+    });
+    return ((await r.json()) as { userInfo?: { email: string }[] }).userInfo?.map((u) => u.email) ?? [];
+  };
+  const args = ["--admin-email", "New.Admin@acts.test", "--first", "Nora", "--last", "New"];
+
+  test("refuses without an admin email or the typed confirmation", async () => {
+    assert.throws(() => reset(["--first", "A", "--last", "B"], "DELETE EVERYTHING\n"), /Usage/);
+    assert.throws(() => reset(args, "yes\n"), /Nothing was changed/);
+    assert.ok(Number((await one("SELECT count(*) FROM users")).count) > 1, "data untouched");
+  });
+
+  test("backs up, empties everything, deletes all logins and creates one admin", async () => {
+    const usersBefore = Number((await one("SELECT count(*) FROM users")).count);
+    assert.ok((await emulatorLogins()).length > 1);
+    const dir = mkdtempSync(path.join(os.tmpdir(), "acts-reset-"));
+    const out = reset([...args, "--out", dir], "DELETE EVERYTHING\n");
+    assert.match(out, /Open this link to set the password/);
+    assert.match(out, /oobCode=/);
+
+    const backup = JSON.parse(readFileSync(path.join(dir, readdirSync(dir)[0]), "utf8"));
+    assert.equal(backup.tables.users.length, usersBefore, "backup taken before the wipe");
+
+    const tables = (await f.pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")).rows.map((r) => r.tablename);
+    for (const t of tables) {
+      const n = Number((await one(`SELECT count(*) FROM "${t}"`)).count);
+      assert.equal(n, t === "users" || t === "audit_log" ? 1 : 0, t);
+    }
+    assert.deepEqual(await one("SELECT email, role, status, staff_category FROM users"),
+      { email: "new.admin@acts.test", role: "admin", status: "active", staff_category: "admin" });
+    assert.ok(Number((await one("SELECT count(*) FROM drizzle.__drizzle_migrations")).count) > 0, "migration history kept");
+    assert.deepEqual(await emulatorLogins(), ["new.admin@acts.test"]);
+    // Old logins are gone.
+    await assert.rejects(signIn("admin@acts.test"));
+  });
+
+  test("the new admin can sign in after setting a password", async () => {
+    // Emulator: set the password directly (the printed link does the same in production).
+    const { initializeApp, getApps } = await import("firebase-admin/app");
+    const { getAuth } = await import("firebase-admin/auth");
+    const app = getApps().find((a) => a.name === "tests") ?? initializeApp({ projectId: PROJECT }, "tests");
+    const login = await getAuth(app).getUserByEmail("new.admin@acts.test");
+    await getAuth(app).updateUser(login.uid, { password: "password123" });
+    const me = await call(await route("me"), { token: await signIn("new.admin@acts.test") });
+    assert.equal(me.status, 200);
+    assert.equal(me.body.role, "admin");
+  });
+});
