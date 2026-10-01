@@ -22,6 +22,7 @@ import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import { getCroppedImg } from '../lib/image';
 import type { Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
   const [formData, setFormData] = useState<Partial<UserProfile>>(profile || {});
@@ -113,7 +114,7 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
       setSuccessMessage("Your profile has been updated and saved.");
       setIsEditing(false);
     } catch (err) {
-      alert("Failed to update profile.");
+      toast.error("Failed to update profile.");
     } finally {
       setSaving(false);
     }

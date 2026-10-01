@@ -34,6 +34,7 @@ import { archiveAccounts, createAccount, deleteAccount, enrollStudents, fetchUse
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
   const [allUsers, setAllUsers] = useState([] as UserProfile[]);
@@ -107,14 +108,14 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
       if (changes.email) {
         setSuccessMsg(`Email updated successfully. ${changes.email} now signs in with the same password as before; their records are unchanged.`);
       } else {
-        alert("Updated successfully.");
+        toast.success("Updated successfully.");
       }
       setEditingUser(null);
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 409 && changes.email) {
-        alert("Cannot update email: The email address is already in use by another account. Please use a different email address.");
+        toast.error("Cannot update email: The email address is already in use by another account. Please use a different email address.");
       } else {
-        alert("Failed to update: " + err.message);
+        toast.error("Failed to update: " + err.message);
       }
     }
   };
@@ -145,9 +146,9 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     try {
       await archiveAccounts(selectedToArchiveUsers);
       setSelectedToArchiveUsers([]);
-      alert("Selected accounts archived.");
+      toast.success("Selected accounts archived.");
     } catch (err: any) {
-      alert("Archive failed: " + err.message);
+      toast.error("Archive failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -159,9 +160,9 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     try {
       await restoreAccounts(selectedToRestoreUsers);
       setSelectedToRestoreUsers([]);
-      alert("Selected accounts restored.");
+      toast.success("Selected accounts restored.");
     } catch (err: any) {
-      alert("Restore failed: " + err.message);
+      toast.error("Restore failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -194,7 +195,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
 
   const handleEnroll = async (yearLevel: string, batchName: string, schoolYear: string) => {
     if (selectedToArchiveUsers.length === 0) {
-      alert("No students selected.");
+      toast.error("No students selected.");
       return;
     }
 
@@ -204,9 +205,9 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
       if (studentIds.length > 0) await enrollStudents(studentIds, yearLevel, batchName, schoolYear);
       setSelectedToArchiveUsers([]);
       setIsEnrolling(false);
-      alert("Successfully enrolled selected students.");
+      toast.success("Successfully enrolled selected students.");
     } catch (err: any) {
-      alert("Enrollment failed: " + err.message);
+      toast.error("Enrollment failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }

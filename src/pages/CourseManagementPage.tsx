@@ -34,6 +34,7 @@ import { archiveCourses, fetchCourses, fetchUsers, restoreCourses, saveCourse } 
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const CourseManagementPage = ({ profile }: { profile: UserProfile | null }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -99,9 +100,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     try {
       await restoreCourses(selectedToRestore);
       setSelectedToRestore([]);
-      alert("Selected courses restored to Academic Registry.");
+      toast.success("Selected courses restored to Academic Registry.");
     } catch (err: any) {
-      alert("Batch restore failed: " + err.message);
+      toast.error("Batch restore failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -113,9 +114,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     try {
       await archiveCourses(selectedToArchive);
       setSelectedToArchive([]);
-      alert("Selected courses moved to Archive.");
+      toast.success("Selected courses moved to Archive.");
     } catch (err: any) {
-      alert("Batch archive failed: " + err.message);
+      toast.error("Batch archive failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -163,8 +164,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
       await saveCourse(dataToSave, editingId || undefined);
       
       setIsAdding(false); setEditingId(null); setFormData(initialFormState);
-      alert("Records successfully published and synced to students.");
-    } catch (err: any) { alert(err.message); }
+      toast.success("Records successfully published and synced to students.");
+    } catch (err: any) { toast.error(err.message); }
     finally { setIsProcessing(false); }
   };
 

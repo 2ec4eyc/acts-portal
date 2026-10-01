@@ -11,6 +11,7 @@ import { fetchAttendance, fetchCourses, fetchUsers, saveAttendance } from '../li
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { AttendanceRecord, Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const AttendanceTracker = ({ profile }: { profile: UserProfile }) => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -99,9 +100,9 @@ export const AttendanceTracker = ({ profile }: { profile: UserProfile }) => {
       });
 
       await saveAttendance(selectedCourse, selectedDate, finalRecords as AttendanceRecord[]);
-      alert("Attendance saved successfully!");
+      toast.success("Attendance saved successfully!");
     } catch (error: any) {
-      alert("Error saving attendance: " + error.message);
+      toast.error("Error saving attendance: " + error.message);
     }
     setSaving(false);
   };
