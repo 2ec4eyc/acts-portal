@@ -242,3 +242,57 @@ async function enrollmentStates(db: DbOrTx, offeringId: string, studentIds: stri
     cannotRemove: r.has_grade ? "Has a grade" : r.has_attendance ? "Has attendance" : null,
   }));
 }
+
+/**
+ * The students in a teacher's own (non-archived) courses, each with those courses, the grade so far
+ * and their attendance there. Archived students and dropped enrollments are left out.
+ */
+export async function teacherStudents(db: DbOrTx, teacherId: string) {
+  const rows = (await db.execute(sql`
+    SELECT u.id, u.first_name, u.last_name, sr.student_no, sr.school_type, sr.current_year_level, c.name AS cohort,
+           o.id AS offering_id, co.name AS course_name, t.semester, sy.label AS school_year, o.year_level,
+           g.value AS grade, coalesce(g.is_incomplete, false) AS is_incomplete,
+           a.present, a.late, a.absent, a.excused
+    FROM course_offerings o
+    JOIN courses co ON co.id = o.course_id
+    JOIN terms t ON t.id = o.term_id
+    JOIN school_years sy ON sy.id = t.school_year_id
+    JOIN enrollments e ON e.offering_id = o.id AND e.status <> 'dropped'
+    JOIN users u ON u.id = e.student_id AND u.role = 'student' AND u.status <> 'archived'
+    LEFT JOIN student_records sr ON sr.user_id = u.id
+    LEFT JOIN cohorts c ON c.id = sr.cohort_id
+    LEFT JOIN grades g ON g.enrollment_id = e.id
+    LEFT JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE ar.status = 'present')::int AS present,
+             count(*) FILTER (WHERE ar.status = 'late')::int AS late,
+             count(*) FILTER (WHERE ar.status = 'absent')::int AS absent,
+             count(*) FILTER (WHERE ar.status = 'absent' AND ar.is_excused)::int AS excused
+      FROM attendance_records ar JOIN attendance_sessions s ON s.id = ar.session_id
+      WHERE s.offering_id = o.id AND ar.student_id = u.id) a ON true
+    WHERE o.instructor_id = ${teacherId} AND o.deleted_at IS NULL
+    ORDER BY u.last_name, u.first_name, sy.label DESC, t.semester, co.name`)).rows as Record<string, unknown>[];
+
+  const byStudent = new Map<string, {
+    studentId: string; studentName: string; studentNo: string | null; schoolType: "day" | "night" | null;
+    yearLevel: number | null; cohort: string | null;
+    courses: { offeringId: string; name: string; semester: number; schoolYear: string; yearLevel: number;
+      grade: number | null; isIncomplete: boolean; attendance: { present: number; late: number; absent: number; excused: number } }[];
+  }>();
+  for (const r of rows) {
+    const id = r.id as string;
+    if (!byStudent.has(id)) {
+      byStudent.set(id, {
+        studentId: id, studentName: `${r.first_name} ${r.last_name}`, studentNo: (r.student_no as string) ?? null,
+        schoolType: (r.school_type as "day" | "night" | null) ?? null, yearLevel: (r.current_year_level as number) ?? null,
+        cohort: (r.cohort as string) ?? null, courses: [],
+      });
+    }
+    byStudent.get(id)!.courses.push({
+      offeringId: r.offering_id as string, name: r.course_name as string, semester: Number(r.semester),
+      schoolYear: r.school_year as string, yearLevel: Number(r.year_level),
+      grade: r.grade == null ? null : Number(r.grade), isIncomplete: Boolean(r.is_incomplete),
+      attendance: { present: Number(r.present), late: Number(r.late), absent: Number(r.absent), excused: Number(r.excused) },
+    });
+  }
+  return [...byStudent.values()];
+}

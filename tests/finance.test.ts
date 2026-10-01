@@ -6,7 +6,8 @@ import { call, route, setup, type Fixture, type Handler } from "./helpers.js";
 
 let f: Fixture;
 const h: Record<string, Handler> = {};
-const days = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Dates in Manila, like the server's "today" (UTC is a day behind from 4 PM to midnight UTC).
+const days = (n: number) => new Date(Date.now() + n * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 // A tiny valid PNG (1x1).
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
