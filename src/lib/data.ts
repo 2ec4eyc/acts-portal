@@ -3,6 +3,7 @@
 // Course, AttendanceRecord, uploaded-file objects), so the UI code keeps working unchanged.
 import { api, downloadFile as download } from './api';
 import { refreshAll } from './live';
+import { DAY_SHORT, dayIndex } from './schedule';
 import { formatName } from './format';
 import type { AttendanceRecord, Course, EditHistoryEntry, Grade, UserProfile } from '../types';
 
@@ -55,7 +56,6 @@ const CATEGORY: Record<ApiStaffCategory, NonNullable<UserProfile['adminCategory'
   day_secretary: 'Day Secretary', night_secretary: 'Night Secretary', faculty: 'Faculty', admin: 'Admin',
 };
 const FREQUENCY = { daily: 'Daily', weekly: 'Weekly', biweekly: 'Bi-weekly', monthly: 'Monthly' } as const;
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const invert = <K extends string, V extends string>(o: Record<K, V>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k])) as Record<V, K>;
 const yearNumber = (y?: string) => (y === '2nd Year' ? 2 : y === '1st Year' ? 1 : undefined);
 const semesterNumber = (s?: string) => (s ? Number(s[0]) : undefined);
@@ -134,7 +134,7 @@ export function toCourse(o: ApiOffering): Course {
     startTime: s?.startTime ?? '',
     endTime: s?.endTime ?? '',
     isRecurring: recurring,
-    daysOfWeek: s ? s.weekdays.map((d) => WEEKDAYS[d]) : [],
+    daysOfWeek: s ? s.weekdays.map((d) => DAY_SHORT[d]) : [],
     frequency: s && s.frequency !== 'once' ? FREQUENCY[s.frequency] : 'Weekly',
     yearLevel: YEAR[o.yearLevel as 1 | 2],
     schoolType: o.schoolType === 'night' ? 'Night School' : o.schoolType === 'day' ? 'Day School' : undefined,
@@ -238,7 +238,8 @@ function courseFields(c: Partial<Course>) {
           startTime: c.startTime.slice(0, 5),
           endTime: c.endTime.slice(0, 5),
           frequency: recurring ? invert(FREQUENCY)[c.frequency ?? 'Weekly'] : 'once',
-          weekdays: recurring ? (c.daysOfWeek ?? []).map((d) => WEEKDAYS.indexOf(d)).filter((d) => d >= 0) : [],
+          // Daily classes meet Monday to Friday; the others on the chosen days ('Mon' or 'Monday').
+          weekdays: recurring && c.frequency !== 'Daily' ? [...new Set((c.daysOfWeek ?? []).map(dayIndex).filter((d) => d >= 0))] : [],
         }
       : null,
   };
