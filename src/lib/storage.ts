@@ -5,6 +5,8 @@ export type StorageLevel = 'ok' | 'warn' | 'full';
 export interface StorageUsage {
   mode: 'r2' | 'db';
   usedBytes: number; trackedBytes: number; files: number; deletedFiles: number;
+  /** Notes, exams and activities uploaded as files (links take no space). */
+  courseFiles: { files: number; bytes: number };
   byStatus: Record<'pending' | 'approved' | 'rejected', { files: number; bytes: number }>;
   measured: { bytes: number | null; objects: number | null; at: string | null; orphansRemoved: number } | null;
   warnBytes: number; limitBytes: number; level: StorageLevel; deleteApprovedAfterYears: number;

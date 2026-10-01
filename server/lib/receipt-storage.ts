@@ -1,7 +1,8 @@
-// How much space receipt files take, the upload limit, alerts to admins, and freeing space.
+// How much space uploaded files take (payment receipts and course files), the upload limit, alerts to
+// admins, and freeing space (receipt files only).
 //
-// Tracked usage is the sum of size_bytes of receipts whose file is still stored (exact: R2 uploads are
-// size-checked with HEAD). In R2 mode the bucket is also listed by the daily job (or "Recount now"),
+// Tracked usage is the sum of size_bytes of receipts and course files still stored (exact: R2 uploads
+// are size-checked with HEAD). In R2 mode the bucket is also listed by the daily job (or "Recount now"),
 // which deletes orphans (uploads that were never submitted) and saves the real total; the larger of the
 // two counts against the limit. Sizes use 1 GB = 1,000,000,000 bytes, the smaller of the two common
 // definitions, so the limit is never more generous than the provider's.
@@ -13,7 +14,7 @@ import { HttpError } from "./http.js";
 import { notify } from "./notifications.js";
 import { getSetting } from "./settings.js";
 import { bucket, MAX_RECEIPT_BYTES, storageMode } from "./storage.js";
-import { invoices, receiptFiles, receiptUploads, storageStatus, users } from "../db/schema.js";
+import { invoices, materials, receiptFiles, receiptUploads, storageStatus, users } from "../db/schema.js";
 
 export const GB = 1_000_000_000;
 const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
@@ -28,6 +29,11 @@ const storedHere = () => and(
   isNull(receiptUploads.fileDeletedAt),
   sql`${receiptUploads.fileKey} LIKE ${storageMode() === "r2" ? "r2:%" : "db:%"}`,
 );
+
+/** Course files (notes, exams, activities) stored in the current mode's place; links take no space. */
+const courseFilesHere = () => storageMode() === "r2"
+  ? sql`${materials.fileKey} LIKE 'r2:%'`
+  : and(isNull(materials.fileKey), isNull(materials.linkUrl));
 
 async function status(db: DbOrTx) {
   await db.insert(storageStatus).values({ id: 1 }).onConflictDoNothing();
@@ -45,8 +51,10 @@ export async function usage(db: DbOrTx) {
     status: receiptUploads.status, files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${receiptUploads.sizeBytes}), 0)::bigint`,
   }).from(receiptUploads).where(storedHere()).groupBy(receiptUploads.status);
   const [deleted] = await db.select({ files: sql<number>`count(*)::int` }).from(receiptUploads).where(isNotNull(receiptUploads.fileDeletedAt));
+  const [course] = await db.select({ files: sql<number>`count(*)::int`, bytes: sql<number>`coalesce(sum(${materials.sizeBytes}), 0)::bigint` })
+    .from(materials).where(courseFilesHere());
   const s = await status(db);
-  const trackedBytes = Number(tracked.bytes);
+  const trackedBytes = Number(tracked.bytes) + Number(course.bytes);
   const measuredBytes = mode === "r2" && s.measuredAt ? s.measuredBytes ?? 0 : null;
   const usedBytes = Math.max(trackedBytes, measuredBytes ?? 0);
   const warnBytes = Math.round(rules.warnAtGb * GB), limitBytes = Math.round(rules.limitGb * GB);
@@ -54,6 +62,7 @@ export async function usage(db: DbOrTx) {
   const level: Level = usedBytes + MAX_RECEIPT_BYTES > limitBytes ? "full" : usedBytes >= warnBytes ? "warn" : "ok";
   return {
     mode, usedBytes, trackedBytes, files: tracked.files, deletedFiles: deleted.files,
+    courseFiles: { files: course.files, bytes: Number(course.bytes) },
     byStatus: Object.fromEntries(["pending", "approved", "rejected"].map((st) => {
       const r = byStatus.find((b) => b.status === st);
       return [st, { files: r?.files ?? 0, bytes: Number(r?.bytes ?? 0) }];
@@ -93,8 +102,8 @@ export async function checkAlerts(db: DbOrTx): Promise<Level> {
 }
 
 /**
- * R2 only: lists the bucket, deletes orphans (objects older than a day that no stored receipt points
- * to) and saves the real total. Skipped if the last count was under a minute ago, unless forced.
+ * R2 only: lists the bucket, deletes orphans (objects older than a day that no stored receipt or course
+ * file points to) and saves the real total. Skipped if the last count was under a minute ago, unless forced.
  */
 export async function recount(db: DbOrTx, opts: { force?: boolean } = {}) {
   if (storageMode() !== "r2") throw new HttpError(400, "Receipts are stored in the database; there is no bucket to count");
@@ -102,10 +111,17 @@ export async function recount(db: DbOrTx, opts: { force?: boolean } = {}) {
   if (!opts.force && s.measuredAt && Date.now() - s.measuredAt.getTime() < RECOUNT_EVERY_MS) {
     return { skipped: true, objects: s.objectCount ?? 0, bytes: s.measuredBytes ?? 0, orphansRemoved: 0 };
   }
-  const objects = await bucket.list("receipts/");
+  const objects = [...await bucket.list("receipts/"), ...await bucket.list("materials/")];
   const keys = objects.map((o) => `r2:${o.key}`);
-  const referenced = new Set(keys.length ? (await db.select({ key: receiptUploads.fileKey }).from(receiptUploads)
-    .where(and(isNull(receiptUploads.fileDeletedAt), inArray(receiptUploads.fileKey, keys)))).map((r) => r.key) : []);
+  const referenced = new Set<string>();
+  for (let i = 0; i < keys.length; i += 5000) {
+    const chunk = keys.slice(i, i + 5000);
+    for (const r of await db.select({ key: receiptUploads.fileKey }).from(receiptUploads)
+      .where(and(isNull(receiptUploads.fileDeletedAt), inArray(receiptUploads.fileKey, chunk)))) referenced.add(r.key);
+    for (const r of await db.select({ key: materials.fileKey }).from(materials).where(inArray(materials.fileKey, chunk))) {
+      if (r.key) referenced.add(r.key);
+    }
+  }
   const cutoff = Date.now() - ORPHAN_AGE_MS;
   const orphans = objects.filter((o) => !referenced.has(`r2:${o.key}`) && o.lastModified.getTime() < cutoff);
   if (orphans.length) await bucket.remove(orphans.map((o) => o.key));

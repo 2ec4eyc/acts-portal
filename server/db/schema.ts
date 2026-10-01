@@ -227,9 +227,16 @@ export const materials = pgTable("materials", {
   eventDate: date("event_date"),
   eventTime: time("event_time"),
   instructions: text("instructions"),
+  /** "r2:materials/…" for files in the private R2 bucket; null = stored in material_files (older uploads). */
+  fileKey: text("file_key"),
+  /** A posted link (Google Drive, YouTube, …) instead of a file; file_name is its title. */
+  linkUrl: text("link_url"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("materials_offering_category_idx").on(t.offeringId, t.category)]);
+}, (t) => [
+  index("materials_offering_category_idx").on(t.offeringId, t.category),
+  check("materials_link_or_file_ck", sql`${t.linkUrl} IS NULL OR ${t.fileKey} IS NULL`),
+]);
 
 // File contents kept apart from `materials` so listing never loads file bytes.
 // Uploads are capped at 800 KB (as in the app), well within Postgres and Vercel request limits.
@@ -288,7 +295,7 @@ export const auditLog = pgTable("audit_log", {
 // ---------- Notifications, announcements, attendance alerts (phase 2) ----------
 export const notificationKind = pgEnum("notification_kind", [
   "attendance_warning", "attendance_escalation", "payment_reminder", "receipt_reviewed", "message",
-  "invoice_issued", "receipt_submitted", "storage_warning",
+  "invoice_issued", "receipt_submitted", "storage_warning", "course_material",
 ]);
 
 /** Per-person inbox (the bell): attendance alerts now; reminders and messages in later phases. */

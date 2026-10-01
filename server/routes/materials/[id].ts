@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser } from "../../lib/auth.js";
 import { db } from "../../lib/db.js";
 import { methods, uuidParam } from "../../lib/http.js";
-import { assertCanManage, getVisibleMaterial } from "../../lib/materials.js";
+import { assertCanManage, deleteMaterial, getVisibleMaterial } from "../../lib/materials.js";
 import { materials } from "../../db/schema.js";
 
 const Patch = z.strictObject({ archived: z.boolean() });
@@ -28,7 +28,7 @@ export default methods({
     const user = await requireUser(req);
     const id = uuidParam(req);
     await assertCanManage(db, user, id);
-    await db.delete(materials).where(eq(materials.id, id));
+    await deleteMaterial(db, id);
     res.status(204).end();
   },
 });

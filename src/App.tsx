@@ -16,6 +16,7 @@ import {
   Wallet,
   Settings as SettingsIcon,
   MessageCircle,
+  BookOpen,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 
@@ -44,7 +45,8 @@ import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentGradesView } from './pages/StudentGradesView';
 import { SubmitGrades } from './pages/SubmitGrades';
 import { TeacherGradesView } from './pages/TeacherGradesView';
-import { TeacherUploadFilesView } from './pages/TeacherUploadFilesView';
+import { CourseMaterialsPage } from './pages/CourseMaterialsPage';
+import { StudentNotesPage } from './pages/StudentNotesPage';
 import type { UserProfile } from './types';
 
 export const App = () => {
@@ -182,7 +184,8 @@ export const App = () => {
         return isAdmin
           ? <SettingsPage tab={activePage === 'audit' ? 'audit' : activePage === 'settings/storage' ? 'storage' : 'general'} />
           : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'upload_files': return isTeacher && profile ? <TeacherUploadFilesView profile={profile} /> : null;
+      case 'upload_files': return (isTeacher || isAdmin || isExecutive) && profile ? <CourseMaterialsPage profile={profile} /> : null;
+      case 'notes': return isStudent ? <StudentNotesPage /> : (isTeacher || isAdmin || isExecutive) && profile ? <CourseMaterialsPage profile={profile} /> : null;
       default: return <StudentDashboard profile={profile} />;
     }
   };
@@ -208,6 +211,7 @@ export const App = () => {
             {isStudent && (
               <>
                 <SidebarItem icon={GraduationCap} label="Records" active={activePage === 'records'} onClick={() => {setActivePage('records'); setSidebarOpen(false)}} />
+                <SidebarItem icon={BookOpen} label="Course Notes" active={activePage === 'notes'} onClick={() => {setActivePage('notes'); setSidebarOpen(false)}} />
                 <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
                 {features.chat && <SidebarItem icon={MessageCircle} label="Messages" badge={chatUnread} active={activePage === 'messages'} onClick={() => {setActivePage('messages'); setSidebarOpen(false)}} />}
                 {features.studentSchedule && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
@@ -223,7 +227,7 @@ export const App = () => {
                   </>
                 )}
                 {(isExecutive || isTeacher || isAdmin) && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
-                {isTeacher && <SidebarItem icon={Upload} label="Upload Files" active={activePage === 'upload_files'} onClick={() => {setActivePage('upload_files'); setSidebarOpen(false)}} />}
+                <SidebarItem icon={Upload} label="Course Materials" active={activePage === 'upload_files' || activePage === 'notes'} onClick={() => {setActivePage('upload_files'); setSidebarOpen(false)}} />
                 <SidebarItem icon={GraduationCap} label={isTeacher ? "Grades" : "Records"} active={activePage === 'grades'} onClick={() => {setActivePage('grades'); setSidebarOpen(false)}} />
                 {isAdmin && (
                   <>

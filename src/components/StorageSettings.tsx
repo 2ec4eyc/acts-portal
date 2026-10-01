@@ -42,15 +42,19 @@ const UsageCard = ({ u, onRecount, recounting }: { u: StorageUsage; onRecount: (
           Admins are notified at {formatBytes(u.warnBytes)} (amber mark). At {formatBytes(u.limitBytes)} students can't upload receipts until space is freed or the limit is raised.
           {u.mode === 'r2' && ` Cloudflare R2's free tier is ${formatBytes(FREE_TIER_BYTES)}.`}
         </p>
-        <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
           {(['pending', 'approved', 'rejected'] as const).map((s) => (
             <div key={s} className="rounded-xl border border-fb-border p-3">
-              <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">{s}</dt>
+              <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">{s} receipts</dt>
               <dd className="font-black tabular-nums">{u.byStatus[s].files} <span className="font-semibold text-fb-textSecondary">· {formatBytes(u.byStatus[s].bytes)}</span></dd>
             </div>
           ))}
           <div className="rounded-xl border border-fb-border p-3">
-            <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">Files deleted</dt>
+            <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">Course files</dt>
+            <dd className="font-black tabular-nums">{u.courseFiles.files} <span className="font-semibold text-fb-textSecondary">· {formatBytes(u.courseFiles.bytes)}</span></dd>
+          </div>
+          <div className="rounded-xl border border-fb-border p-3">
+            <dt className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">Receipt files deleted</dt>
             <dd className="font-black tabular-nums">{u.deletedFiles}</dd>
           </div>
         </dl>

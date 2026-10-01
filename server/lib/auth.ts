@@ -36,17 +36,19 @@ export type Permission =
   // (staff accounts, roles, emails, create, archive, restore, delete).
   | "users:read" | "users:write" | "users:admin"
   | "grades:write_own_offerings" | "grades:write_any"
-  | "attendance:write" | "offerings:write" | "materials:write_own"
+  | "attendance:write" | "offerings:write" | "materials:write_own" | "materials:write_any"
   | "transcripts:issue" | "settings:write" | "audit:read" | "announcements:write"
   | "finance:read" | "finance:write" | "storage:manage" | "chat:admin_inbox";
 
 const PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: [],
   teacher: ["users:read", "grades:write_own_offerings", "materials:write_own"],
-  president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
-  vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
+  president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write",
+              "materials:write_own", "materials:write_any"],
+  vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write",
+                   "materials:write_own", "materials:write_any"],
   admin: ["users:read", "users:write", "users:admin", "grades:write_own_offerings", "grades:write_any",
-          "attendance:write", "offerings:write", "materials:write_own", "transcripts:issue",
+          "attendance:write", "offerings:write", "materials:write_own", "materials:write_any", "transcripts:issue",
           "settings:write", "audit:read", "announcements:write",
           "finance:read", "finance:write", "storage:manage", "chat:admin_inbox"],
 };
