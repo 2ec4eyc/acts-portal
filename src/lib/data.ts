@@ -264,6 +264,17 @@ export const fetchUsers = async (opts: { role?: UserProfile['role']; status?: 'c
     query: { role: opts.role ? invert(ROLE)[opts.role] : undefined, status: opts.status, include: 'grades' },
   })).map(toUserProfile);
 
+export interface MyStudentCourse {
+  offeringId: string; name: string; semester: number; schoolYear: string; yearLevel: number;
+  grade: number | null; isIncomplete: boolean; attendance: { present: number; late: number; absent: number; excused: number };
+}
+export interface MyStudent {
+  studentId: string; studentName: string; studentNo: string | null; schoolType: 'day' | 'night' | null;
+  yearLevel: number | null; cohort: string | null; courses: MyStudentCourse[];
+}
+/** The students in the signed-in teacher's own courses, with grade and attendance in each. */
+export const fetchMyStudents = () => api<MyStudent[]>('me/students');
+
 export const fetchUser = async (uid: string) =>
   toUserProfile(await api<ApiProfile>(`users/${uid}`, { query: { include: 'grades' } }));
 

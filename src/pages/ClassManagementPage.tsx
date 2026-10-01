@@ -7,13 +7,14 @@ import { StudentCalendarView } from './StudentCalendarView';
 import { StudentGradesView } from './StudentGradesView';
 import { StudentNotesPage } from './StudentNotesPage';
 import { SubmitGrades } from './SubmitGrades';
+import { TeacherStudentsPage } from './TeacherStudentsPage';
 import { TeacherGradesView } from './TeacherGradesView';
 import type { UserProfile } from '../types';
 
-export type ClassTab = 'courses' | 'schedule' | 'materials' | 'attendance' | 'grades' | 'notes' | 'records';
+export type ClassTab = 'courses' | 'schedule' | 'students' | 'materials' | 'attendance' | 'grades' | 'notes' | 'records';
 const LABELS: Record<ClassTab, string> = {
   courses: 'Courses', schedule: 'Schedule', materials: 'Materials', attendance: 'Attendance', grades: 'Grades',
-  notes: 'Courses', records: 'Records',
+  notes: 'Courses', records: 'Records', students: 'Students',
 };
 
 /**
@@ -23,12 +24,12 @@ const LABELS: Record<ClassTab, string> = {
 export function classTabs(role: UserProfile['role'] | undefined, studentSchedule = true): ClassTab[] {
   if (role === 'student') return studentSchedule ? ['notes', 'records', 'schedule'] : ['notes', 'records'];
   if (role === 'admin') return ['courses', 'schedule', 'materials', 'attendance', 'grades'];
-  if (role === 'teacher' || role === 'president' || role === 'vice president') return ['schedule', 'materials', 'grades'];
+  if (role === 'teacher' || role === 'president' || role === 'vice president') return ['schedule', 'students', 'materials', 'grades'];
   return [];
 }
 
 /**
- * Class Management, as tabs: courses, schedule, course materials, attendance and grades for staff;
+ * Class Management, as tabs: courses, schedule, students (teachers), course materials, attendance and grades for staff;
  * courses (notes), records and schedule for students.
  */
 export const ClassManagementPage = ({ profile, tab, studentSchedule = true }: { profile: UserProfile; tab?: ClassTab; studentSchedule?: boolean }) => {
@@ -53,6 +54,7 @@ export const ClassManagementPage = ({ profile, tab, studentSchedule = true }: { 
       <div role="tabpanel" aria-label={LABELS[active]}>
         {active === 'courses' && <CourseManagementPage profile={profile} />}
         {active === 'schedule' && <StudentCalendarView profile={profile} />}
+        {active === 'students' && <TeacherStudentsPage />}
         {active === 'materials' && <CourseMaterialsPage profile={profile} />}
         {active === 'attendance' && <AttendanceTracker profile={profile} />}
         {active === 'notes' && <StudentNotesPage />}

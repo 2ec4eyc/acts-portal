@@ -6,11 +6,14 @@ import {
   BookOpen,
 } from 'lucide-react';
 
+import type { ReactNode } from 'react';
+
 import { FormField } from '../FormField';
 import { formatName } from '../../lib/format';
 import type { UserProfile } from '../../types';
 
-export const StudentProfileViewModal = ({ student, onClose }: { student: UserProfile, onClose: () => void }) => {
+/** Read-only student profile. `extra` is shown above the profile details (for example a teacher's view of their courses). */
+export const StudentProfileViewModal = ({ student, onClose, extra }: { student: UserProfile, onClose: () => void, extra?: ReactNode }) => {
   const SectionHeader = ({ title, icon: Icon }: { title: string, icon?: any }) => (
     <div className="col-span-full border-b border-fb-border pb-3 mt-8 first:mt-0 flex items-center gap-2">
       {Icon && <Icon className="text-fb-blue" size={18} />}
@@ -19,9 +22,9 @@ export const StudentProfileViewModal = ({ student, onClose }: { student: UserPro
   );
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div role="dialog" aria-modal="true" aria-label={`Profile of ${formatName(student)}`} className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border border-fb-border custom-scrollbar relative">
-        <button onClick={onClose} className="absolute top-6 right-6 p-3 bg-white hover:bg-fb-gray rounded-full transition-all border border-fb-border text-fb-textPrimary z-10"><X size={24} /></button>
+        <button onClick={onClose} aria-label="Close" className="absolute top-6 right-6 p-3 bg-white hover:bg-fb-gray rounded-full transition-all border border-fb-border text-fb-textPrimary z-10"><X size={24} /></button>
         <div className="flex flex-col md:flex-row min-h-full">
           {/* Left Sidebar */}
           <div className="w-full md:w-80 md:shrink-0 bg-fb-blue p-10 flex flex-col items-center text-white">
@@ -45,6 +48,7 @@ export const StudentProfileViewModal = ({ student, onClose }: { student: UserPro
 
           {/* Right Details */}
           <div className="flex-1 min-w-0 p-8 md:p-12">
+            {extra}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               <SectionHeader title="Student Information" icon={BookOpen} />
               <div className="md:col-span-3">

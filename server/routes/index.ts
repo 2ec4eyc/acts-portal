@@ -29,6 +29,7 @@ import financeStudents from "./finance/students/index.js";
 import financeTemplate from "./finance/templates/[id].js";
 import financeTemplates from "./finance/templates/index.js";
 import meFinance from "./me/finance.js";
+import meStudents from "./me/students.js";
 import health from "./health.js";
 import material from "./materials/[id].js";
 import materialFile from "./materials/[id]/file.js";
@@ -106,6 +107,7 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["announcements/:id", announcement],
   ["announcements/:id/read", announcementRead],
   ["me/finance", meFinance],
+  ["me/students", meStudents],
   ["finance/students", financeStudents],
   ["finance/students/:id/statement", financeStatement],
   ["finance/invoices", financeInvoices],
