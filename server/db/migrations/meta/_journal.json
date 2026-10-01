@@ -64,6 +64,13 @@
       "when": 1790834165014,
       "tag": "0008_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790838688453,
+      "tag": "0009_chat",
+      "breakpoints": true
     }
   ]
 }

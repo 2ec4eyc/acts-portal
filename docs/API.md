@@ -27,6 +27,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Post and manage announcements | | | | ✓ |
 | Billing: invoices, payments, receipt review | own statement; upload receipts | | | ✓ |
 | Receipt storage: usage, file list, delete files | | | | ✓ |
+| Chat with the school office | own thread | | | ✓ (shared inbox, archive) |
 
 ## Endpoints
 
@@ -86,6 +87,14 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | GET | `/api/storage/files?status=&q=&deletable=true&sort=newest\|largest&offset=` | Admins. Receipt files, 100 at a time (`nextOffset`). `status` can also be `deleted`. Each file has `cannotDelete`: null, or the reason it can't be deleted. |
 | POST | `/api/storage/files/delete` | Admins. `{ ids }` (up to 200). Deletes the file (not the receipt or payment) of rejected receipts, and of approved receipts reviewed more than `deleteApprovedAfterYears` ago. Pending ones are never deleted. Returns `{ deleted, freedBytes, skipped: [{ id, reason }], warning }`. Afterwards the file endpoint returns 410. |
 | POST | `/api/storage/recount` | Admins, R2 only. Lists the bucket, removes uploads more than a day old that were never submitted, and saves the real total. At most once a minute. |
+| GET, POST | `/api/chat/conversations?q=&unread=true&status=` | GET: admins get the inbox (newest first, with `unread`, meaning the student is waiting for a reply, and a preview). Students get their own thread, created on first use, with `chatEnabled`. POST (admins): `{ studentId }` starts or opens a thread with a student. |
+| PATCH | `/api/chat/conversations/:id` | Admins. `{ status: "open" \| "closed" }`. Students can't write in a closed thread. |
+| GET, POST | `/api/chat/conversations/:id/messages?after=\|before=` | The thread's student or admins. GET: the newest 50, older ones (`before` an id), or only newer ones (`after` an id, used for polling). Returns `{ messages, more }`. POST: `{ body }` (1–4000 characters). Students need the `chat` switch on and an open thread. The other side gets one notification per burst. |
+| POST | `/api/chat/conversations/:id/read` | Marks the thread read for the caller's side. Returns 204. |
+| GET | `/api/chat/unread` | `{ count }` for the sidebar badge: threads waiting for the office (admins), or 0 or 1 (students). |
+| GET | `/api/chat/archive?before=YYYY-MM-DD` | Admins. Messages sent before that day (Manila): count, conversations, bytes, oldest; plus the total chat size. |
+| GET | `/api/chat/archive/messages?before=&afterId=` | Admins. Those messages, 2000 at a time, oldest first, with student and sender names (`nextAfterId`). |
+| POST | `/api/chat/archive/purge` | Admins. `{ before, expectedCount }` removes the messages before that day, but only if there are still exactly `expectedCount` (otherwise 409). Logged as `chat.archived`. |
 | GET | `/api/cron/daily` | Vercel Cron, `Authorization: Bearer $CRON_SECRET`. Sends payment reminders based on the `billing` setting (`reminderDaysBefore`, `overdueEveryDays`), cleans up old notifications, and checks receipt storage (bucket recount, then alerts). Safe to run more than once. |
 
 Money is in pesos with two decimals. Invoices and payments are never deleted, only voided with a reason, and every change appears in the audit log.

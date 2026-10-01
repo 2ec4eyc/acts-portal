@@ -12,7 +12,7 @@ import {
 const SWITCHES: { key: keyof Features; label: string; description: string; available: boolean }[] = [
   { key: 'studentSchedule', label: 'Student schedule', description: 'Students see the Schedule page with their class calendar.', available: true },
   { key: 'announcements', label: 'Announcements', description: 'Announcements are shown on dashboards and admins can post them.', available: true },
-  { key: 'chat', label: 'Chat with the school office', description: 'Students can send messages to admins. Turn off during exams.', available: false },
+  { key: 'chat', label: 'Chat with the school office', description: 'Students can message the school office from the Messages page. Turn off during exams; the office can still read and write.', available: true },
   { key: 'receiptUploads', label: 'Payment receipt uploads', description: 'Students can upload proof of payment on their Billing page. Turn off during maintenance.', available: true },
 ];
 

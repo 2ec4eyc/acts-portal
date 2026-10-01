@@ -6,6 +6,14 @@ import attendance from "./attendance/index.js";
 import audit from "./audit/index.js";
 import gradesBulk from "./grades/bulk.js";
 import grades from "./grades/index.js";
+import chatArchive from "./chat/archive/index.js";
+import chatArchiveMessages from "./chat/archive/messages.js";
+import chatArchivePurge from "./chat/archive/purge.js";
+import chatConversation from "./chat/conversations/[id].js";
+import chatMessages from "./chat/conversations/[id]/messages.js";
+import chatRead from "./chat/conversations/[id]/read.js";
+import chatConversations from "./chat/conversations/index.js";
+import chatUnread from "./chat/unread.js";
 import cronDaily from "./cron/daily.js";
 import financeInvoice from "./finance/invoices/[id].js";
 import financeInvoiceRemind from "./finance/invoices/[id]/remind.js";
@@ -103,6 +111,14 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["storage/files", storageFiles],
   ["storage/files/delete", storageFilesDelete],
   ["storage/recount", storageRecount],
+  ["chat/conversations", chatConversations],
+  ["chat/conversations/:id", chatConversation],
+  ["chat/conversations/:id/messages", chatMessages],
+  ["chat/conversations/:id/read", chatRead],
+  ["chat/unread", chatUnread],
+  ["chat/archive", chatArchive],
+  ["chat/archive/messages", chatArchiveMessages],
+  ["chat/archive/purge", chatArchivePurge],
   ["cron/daily", cronDaily],
 ];
 
