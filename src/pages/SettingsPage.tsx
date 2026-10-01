@@ -3,15 +3,15 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Card } from '../components/Card';
 import {
-  fetchAlertSettings, fetchFeatureSettings, updateAlertSettings, updateFeatures,
-  type AttendanceAlerts, type Features, type SettingInfo,
+  fetchAlertSettings, fetchBillingSettings, fetchFeatureSettings, updateAlertSettings, updateBillingSettings, updateFeatures,
+  type AttendanceAlerts, type BillingSettings, type Features, type SettingInfo,
 } from '../lib/settings';
 
 const SWITCHES: { key: keyof Features; label: string; description: string; available: boolean }[] = [
   { key: 'studentSchedule', label: 'Student schedule', description: 'Students see the Schedule page with their class calendar.', available: true },
   { key: 'announcements', label: 'Announcements', description: 'Announcements are shown on dashboards and admins can post them.', available: true },
   { key: 'chat', label: 'Chat with the school office', description: 'Students can send messages to admins. Turn off during exams.', available: false },
-  { key: 'receiptUploads', label: 'Payment receipt uploads', description: 'Students can upload proof of payment for review.', available: false },
+  { key: 'receiptUploads', label: 'Payment receipt uploads', description: 'Students can upload proof of payment on their Billing page. Turn off during maintenance.', available: true },
 ];
 
 const formatWhen = (iso: string) => new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
@@ -63,6 +63,40 @@ const AlertSettings = () => {
         <button type="submit" disabled={saving || changed.length === 0} className="px-5 py-2.5 bg-fb-blue text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-40">
           {saving ? 'Saving…' : 'Save'}
         </button>
+      </form>
+    </Card>
+  );
+};
+
+const ReminderSettings = () => {
+  const [saved, setSaved] = useState<BillingSettings | null>(null);
+  const [form, setForm] = useState<BillingSettings | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => { fetchBillingSettings().then((r) => { setSaved(r.value); setForm(r.value); }).catch((e) => setMessage({ ok: false, text: e.message })); }, []);
+  if (!form || !saved) return null;
+  const changed = (Object.keys(form) as (keyof BillingSettings)[]).filter((k) => form[k] !== saved[k]);
+  const save = async (e: FormEvent) => {
+    e.preventDefault(); setMessage(null);
+    try {
+      const r = await updateBillingSettings(Object.fromEntries(changed.map((k) => [k, form[k]])));
+      setSaved(r.value); setForm(r.value); setMessage({ ok: true, text: 'Saved.' });
+    } catch (err) { setMessage({ ok: false, text: (err as Error).message }); }
+  };
+  const num = 'w-20 bg-white border-2 border-fb-gray rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-fb-blue tabular-nums';
+  return (
+    <Card title="Payment reminders">
+      <form onSubmit={save} className="space-y-4">
+        <p className="text-sm text-fb-textSecondary">Sent automatically every morning to students with unpaid invoices. Use 0 to turn a reminder off. Admins can also send one any time from a student's statement.</p>
+        <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
+          <input type="number" className={num} min={0} max={60} required value={form.reminderDaysBefore} onChange={(e) => setForm({ ...form, reminderDaysBefore: Number(e.target.value) })} />
+          days before the due date
+        </label>
+        <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
+          <input type="number" className={num} min={0} max={60} required value={form.overdueEveryDays} onChange={(e) => setForm({ ...form, overdueEveryDays: Number(e.target.value) })} />
+          then every this many days while overdue
+        </label>
+        {message && <p role={message.ok ? 'status' : 'alert'} className={`text-sm font-bold ${message.ok ? 'text-emerald-700' : 'text-red-700'}`}>{message.text}</p>}
+        <button type="submit" disabled={changed.length === 0} className="px-5 py-2.5 bg-fb-blue text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-40">Save</button>
       </form>
     </Card>
   );
@@ -126,6 +160,7 @@ export const SettingsPage = () => {
         )}
       </Card>
       <AlertSettings />
+      <ReminderSettings />
       {info?.updatedAt && (
         <p className="text-xs text-fb-textSecondary">Last changed {formatWhen(info.updatedAt)}{info.updatedBy ? ` by ${info.updatedBy}` : ''}. Every change is recorded in the Audit Log.</p>
       )}

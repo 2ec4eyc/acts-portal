@@ -25,6 +25,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Read issued transcripts | own | ✓ | ✓ | ✓ |
 | Audit log, settings and feature switches | | | | ✓ |
 | Post and manage announcements | | | | ✓ |
+| Billing: invoices, payments, receipt review | own statement; upload receipts | | | ✓ |
 
 ## Endpoints
 
@@ -61,13 +62,28 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 
 | GET | `/api/audit?table=&actorId=&entityId=&from=&to=&before=&limit=` | Admins. Every change to grades, accounts, profiles, student records, courses, attendance, files, transcripts and settings, newest first: `{ entries: [{ id, at, actor, action, table, op, subject, changes: [{ field, from, to }] }], nextBefore }`. People appear by name. `from`/`to` are Manila dates. |
 | GET | `/api/settings/public` | **No auth.** `{ features: { chat, receiptUploads, announcements, studentSchedule } }`. CDN-cached for 60 s. |
-| GET, PATCH | `/api/settings/:key` | Admins. `features`, `attendanceAlerts` (`warnAt`, `escalateAt`, `countExcused`, `countLate`). PATCH changes only the fields sent; unknown fields are rejected. |
+| GET, PATCH | `/api/settings/:key` | Admins. `features`, `attendanceAlerts` (`warnAt`, `escalateAt`, `countExcused`, `countLate`), `billing` (`reminderDaysBefore`, `overdueEveryDays`). PATCH changes only the fields sent; unknown fields are rejected. |
 
 | GET | `/api/notifications[?unread=true]` | The caller's own notifications, newest first (30), plus `unread`. Attendance alerts for now. |
 | POST | `/api/notifications/read` | `{ ids }` or `{ all: true }`, for the caller's own notifications only. |
 | GET, POST | `/api/announcements[?manage=true]` | GET: what the caller should see now (published, not expired, for their role; batch/course narrow it for students and teachers), pinned first, with `read`. `manage=true` (admins): all, with `status` (`scheduled`/`live`/`expired`) and `readCount`. POST (admins): `{ title, body, audienceRoles, cohort?, offeringId?, pinned, publishAt?, expiresAt? }`. Empty, and posting refused, while the `announcements` switch is off. |
 | PATCH, DELETE | `/api/announcements/:id` | Admins. PATCH changes only the fields sent. |
 | POST | `/api/announcements/:id/read` | Marks one from the caller's feed as read. |
+
+| GET | `/api/finance/students` | Finance (admins). Every student with charged, paid, outstanding, overdue count and receipts waiting for review. |
+| GET | `/api/finance/students/:id/statement`, `/api/me/finance` | Totals (charged, paid, balance, outstanding, credit), invoices with status, payments with what they paid, receipts, and the ledger with a running balance. Admins see anyone's; a student sees only their own. |
+| GET, POST | `/api/finance/invoices?studentId=&status=` | POST `{ studentIds, description, dueOn, lines: [{ description, amount }] }` creates one invoice per student, numbered `INV-YYYY-0001`. Status is derived: `paid`, `partially_paid`, `pending`, `overdue`, or `void`. `status=open` returns anything still owed. |
+| GET, PATCH | `/api/finance/invoices/:id` | PATCH `{ void: { reason } }`. Refused while payments are applied to the invoice. |
+| POST | `/api/finance/invoices/:id/remind` | Notifies the student, at most once a day per invoice. |
+| POST | `/api/finance/payments` | `{ studentId, amount, paidOn, method: cash\|bank_transfer\|gcash\|maya\|other, reference?, invoiceId? }`. Applied to `invoiceId` first, then the oldest unpaid invoices. Anything left over stays as credit. |
+| PATCH | `/api/finance/payments/:id` | `{ void: { reason } }`. The invoices it paid go back to owing that amount. |
+| POST | `/api/finance/receipts/upload-url` | Students. `{ contentType, sizeBytes, sha256 }` returns `{ mode: "r2", key, url }`: PUT the file to `url` within 5 minutes. Without R2 it returns `{ mode: "db" }`. Accepted types are JPEG, PNG, WebP and PDF, up to 2 MB. Duplicate files are refused. |
+| GET, POST | `/api/finance/receipts?status=&studentId=` | POST (students): `{ contentType, sizeBytes, sha256, key \| data (base64), amountClaimed, paidOn, method, reference?, invoiceId? }`. The file's type is checked, and admins are notified. GET: admins see all receipts, students their own. |
+| GET | `/api/finance/receipts/:id/file` | Returns `{ url }` (a 5-minute R2 link) or the file itself. Only the uploading student and admins can open it. |
+| POST | `/api/finance/receipts/:id/review` | Admins. `{ decision: "approve", amount? }` records the payment. `{ decision: "reject", note }` requires a reason. The student is notified either way. |
+| GET | `/api/cron/daily` | Vercel Cron, `Authorization: Bearer $CRON_SECRET`. Sends payment reminders based on the `billing` setting (`reminderDaysBefore`, `overdueEveryDays`) and cleans up old notifications. Safe to run more than once. |
+
+Money is in pesos with two decimals. Invoices and payments are never deleted, only voided with a reason, and every change appears in the audit log.
 
 **Absence alerts.** Saving attendance (`PUT /api/attendance`) checks the saved students in that course. When a student reaches the `attendanceAlerts` thresholds (default: warning at 2 unexcused absences, escalation at 3), the student, the course's teacher and every admin get a notification. Each threshold fires once per student per course, even if the day is saved again. Settings also control whether excused absences and lates count.
 

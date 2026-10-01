@@ -285,6 +285,7 @@ export const auditLog = pgTable("audit_log", {
 // ---------- Notifications, announcements, attendance alerts (phase 2) ----------
 export const notificationKind = pgEnum("notification_kind", [
   "attendance_warning", "attendance_escalation", "payment_reminder", "receipt_reviewed", "message",
+  "invoice_issued", "receipt_submitted",
 ]);
 
 /** Per-person inbox (the bell): attendance alerts now; reminders and messages in later phases. */
@@ -333,3 +334,106 @@ export const announcementReads = pgTable("announcement_reads", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   readAt: timestamp("read_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.announcementId, t.userId] })]);
+
+const money = (name: string) => numeric(name, { precision: 12, scale: 2 });
+
+// ---------- Billing (phase 3) ----------
+// Money is numeric(12,2), PHP. Invoice status and balances are derived in views (migration 0007), never
+// stored. Nothing is hard-deleted: invoices and payments are voided with a reason.
+export const invoiceState = pgEnum("invoice_state", ["issued", "void"]);
+export const paymentMethod = pgEnum("payment_method", ["cash", "bank_transfer", "gcash", "maya", "other"]);
+export const receiptStatus = pgEnum("receipt_status", ["pending", "approved", "rejected"]);
+
+export const invoices = pgTable("invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  number: text("number").notNull().unique(),               // INV-2026-0001
+  studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  termId: integer("term_id").references(() => terms.id, { onDelete: "set null" }),
+  description: text("description").notNull(),
+  issuedOn: date("issued_on").notNull().defaultNow(),
+  dueOn: date("due_on").notNull(),
+  state: invoiceState("state").notNull().default("issued"),
+  voidReason: text("void_reason"),
+  voidedBy: uuid("voided_by").references(() => users.id, { onDelete: "set null" }),
+  voidedAt: timestamp("voided_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("invoices_student_idx").on(t.studentId),
+  index("invoices_due_idx").on(t.dueOn),
+  check("invoices_void_ck", sql`(${t.state} = 'void') = (${t.voidedAt} IS NOT NULL AND ${t.voidReason} IS NOT NULL)`),
+]);
+
+export const invoiceLines = pgTable("invoice_lines", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  invoiceId: uuid("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),               // "Tuition, 1st semester"
+  amount: money("amount").notNull(),
+}, (t) => [check("invoice_lines_amount_ck", sql`${t.amount} > 0`)]);
+
+export const receiptUploads = pgTable("receipt_uploads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
+  amountClaimed: money("amount_claimed").notNull(),
+  paidOn: date("paid_on").notNull(),
+  method: paymentMethod("method").notNull(),
+  reference: text("reference"),                             // bank / GCash reference no.
+  /** "r2:receipts/…" (private Cloudflare R2 bucket) or "db:<id>" (stored in receipt_files). */
+  fileKey: text("file_key").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  status: receiptStatus("status").notNull().default("pending"),
+  reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("receipts_status_idx").on(t.status, t.createdAt),
+  uniqueIndex("receipts_student_sha_uq").on(t.studentId, t.sha256),   // same file uploaded twice
+  check("receipts_size_ck", sql`${t.sizeBytes} BETWEEN 1 AND 2097152`),
+  check("receipts_type_ck", sql`${t.contentType} IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')`),
+]);
+
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  amount: money("amount").notNull(),
+  paidOn: date("paid_on").notNull(),
+  method: paymentMethod("method").notNull(),
+  reference: text("reference"),
+  receiptUploadId: uuid("receipt_upload_id").unique().references(() => receiptUploads.id, { onDelete: "set null" }),
+  recordedBy: uuid("recorded_by").references(() => users.id, { onDelete: "set null" }),
+  voidReason: text("void_reason"),
+  voidedBy: uuid("voided_by").references(() => users.id, { onDelete: "set null" }),
+  voidedAt: timestamp("voided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("payments_student_idx").on(t.studentId),
+  check("payments_amount_ck", sql`${t.amount} > 0`),
+]);
+
+/** How a payment is applied to invoices (oldest due first by default; admins can re-allocate). */
+export const paymentAllocations = pgTable("payment_allocations", {
+  paymentId: uuid("payment_id").notNull().references(() => payments.id, { onDelete: "cascade" }),
+  invoiceId: uuid("invoice_id").notNull().references(() => invoices.id, { onDelete: "restrict" }),
+  amount: money("amount").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.paymentId, t.invoiceId] }),
+  index("allocations_invoice_idx").on(t.invoiceId),
+  check("allocations_amount_ck", sql`${t.amount} > 0`),
+]);
+
+export const paymentReminders = pgTable("payment_reminders", {
+  invoiceId: uuid("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),                             // "due_soon" | "overdue" | "manual"
+  sentOn: date("sent_on").notNull().defaultNow(),
+  sentBy: uuid("sent_by").references(() => users.id, { onDelete: "set null" }),
+}, (t) => [primaryKey({ columns: [t.invoiceId, t.kind, t.sentOn] })]);
+
+/** Receipt file contents when R2 isn't configured (kept out of receipt_uploads so lists stay light). */
+export const receiptFiles = pgTable("receipt_files", {
+  receiptId: uuid("receipt_id").primaryKey().references(() => receiptUploads.id, { onDelete: "cascade" }),
+  content: bytea("content").notNull(),
+});

@@ -28,7 +28,15 @@ export const AttendanceAlerts = z.object({
   countLate: z.boolean().default(false),
 });
 
-const SETTINGS = { features: Features, attendanceAlerts: AttendanceAlerts } as const;
+/** Automatic payment reminders (sent by the daily job). */
+export const Billing = z.object({
+  /** Remind students this many days before an invoice is due (0 = off). */
+  reminderDaysBefore: z.number().int().min(0).max(60).default(3),
+  /** Remind again every this many days while an invoice is overdue (0 = off). */
+  overdueEveryDays: z.number().int().min(0).max(60).default(7),
+});
+
+const SETTINGS = { features: Features, attendanceAlerts: AttendanceAlerts, billing: Billing } as const;
 
 /** Rules that involve more than one field, checked on the merged value before saving. */
 const CHECKS: { [K in keyof typeof SETTINGS]?: (value: z.infer<(typeof SETTINGS)[K]>) => string | null } = {

@@ -29,7 +29,7 @@ Covers chat and announcements, automated attendance alerts, billing and receipts
 |---|---|---|
 | 1. Chat & announcements | `users`, `cohorts`, `course_offerings`; client `live()` polling as fallback | `conversations`, `messages`, `announcements`, `announcement_reads`, `notifications`; Ably |
 | 2. Attendance alerts | `attendance_sessions`/`attendance_records` (these *are* the attendance log), `saveAttendance()` | `attendance_alerts`; alert step inside the existing save transaction |
-| 3. Billing | `users`, `terms` | `invoices`, `invoice_lines`, `payments`, `payment_allocations`, `receipt_uploads`, `payment_reminders`; views `invoice_balances`, `student_ledger`; R2 bucket; daily cron |
+| 3. Billing ✅ | `users`, `terms` | `invoices`, `invoice_lines`, `payments`, `payment_allocations`, `receipt_uploads`, `payment_reminders`; views `invoice_balances`, `student_ledger`; R2 bucket; daily cron |
 | 4. Audit | `audit_log` (already written for transcripts, resets, admin grants) | row-level columns, a trigger on every sensitive table, `withActor()`; append-only guard |
 | 5. Analytics | everything above | `mv_enrollment_by_term`, `mv_attendance_daily`; `GET /api/analytics/summary` |
 | 6. Settings & custom fields | `app_settings` (JSONB key/value) | typed keys + code defaults; `custom_field_definitions`; `student_records.custom_fields` JSONB |
