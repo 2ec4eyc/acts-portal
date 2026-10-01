@@ -16,10 +16,12 @@ import {
   ArrowUp,
   ArrowDown,
   Database,
+  Trash2,
 } from 'lucide-react';
 
 import { Card } from '../components/Card';
 import { CleanUpRecordsModal } from '../components/modals/CleanUpRecordsModal';
+import { ConfirmModal } from '../components/modals/ConfirmModal';
 import { EditUserModal } from '../components/modals/EditUserModal';
 import { EnrollModal } from '../components/modals/EnrollModal';
 import { ErrorModal } from '../components/modals/ErrorModal';
@@ -28,7 +30,7 @@ import { SuccessModal } from '../components/modals/SuccessModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
 import { HIDDEN_ADMIN_EMAILS } from '../constants';
 import { ApiError } from '../lib/api';
-import { archiveAccounts, createAccount, enrollStudents, fetchUsers, restoreAccounts, updateAccount } from '../lib/data';
+import { archiveAccounts, createAccount, deleteAccount, enrollStudents, fetchUsers, restoreAccounts, updateAccount } from '../lib/data';
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
@@ -37,6 +39,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
   const [allUsers, setAllUsers] = useState([] as UserProfile[]);
   const [archivedUsers, setArchivedUsers] = useState([] as UserProfile[]);
   const [isViewArchive, setIsViewArchive] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all' as 'all' | 'admin' | 'student');
   const [permissionError, setPermissionError] = useState(false);
@@ -162,6 +165,31 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Permanently deletes the selected archived accounts, one at a time so one refusal
+  // (e.g. a student with issued transcripts) doesn't block the rest.
+  const handleBatchDeleteUsers = async () => {
+    setConfirmingDelete(false);
+    const ids = [...selectedToRestoreUsers];
+    if (ids.length === 0) return;
+    setIsProcessing(true);
+    const failed: { uid: string; reason: string }[] = [];
+    for (const uid of ids) {
+      try {
+        await deleteAccount(uid);
+      } catch (err: any) {
+        const user = archivedUsers.find((u) => u.uid === uid);
+        failed.push({ uid, reason: `${user ? formatName(user) : uid}: ${err.message}` });
+      }
+    }
+    const deleted = ids.length - failed.length;
+    // Keep the ones that couldn't be deleted selected, so it's clear which they are.
+    setSelectedToRestoreUsers(failed.map((f) => f.uid));
+    setIsProcessing(false);
+    const summary = `Deleted ${deleted} account${deleted === 1 ? '' : 's'}.`;
+    if (failed.length) setErrorMsg(`${summary} ${failed.length} could not be deleted:\n${failed.map((f) => f.reason).join('\n')}`);
+    else setSuccessMsg(summary);
   };
 
   const handleEnroll = async (yearLevel: string, batchName: string, schoolYear: string) => {
@@ -316,6 +344,16 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                         {isProcessing ? <RefreshCw className="animate-spin" size={10}/> : (isViewArchive ? <RotateCcw size={10}/> : <Archive size={10}/>)}
                         <span>{isViewArchive ? `Restore` : `Archive`}</span>
                       </button>
+                      {isViewArchive && (
+                        <button
+                          onClick={() => setConfirmingDelete(true)}
+                          disabled={isProcessing}
+                          className="flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-black uppercase transition-all shadow-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          <Trash2 size={10} />
+                          <span>Delete</span>
+                        </button>
+                      )}
                     </div>
                     <div className="flex justify-center">
                       <span className="text-fb-textSecondary text-[8px] font-black uppercase whitespace-nowrap tracking-tighter">
@@ -541,6 +579,15 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
         />
       )}
       {resettingPasswordUser && <PasswordResetModal user={resettingPasswordUser} onClose={() => setResettingPasswordUser(null)} />}
+      <ConfirmModal
+        isOpen={confirmingDelete}
+        title="Delete permanently?"
+        message={`This permanently deletes ${selectedToRestoreUsers.length} archived account${selectedToRestoreUsers.length === 1 ? '' : 's'}: their logins, profiles, grades and attendance. This can't be undone. Students with issued transcripts and teachers who uploaded course files are kept.`}
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={handleBatchDeleteUsers}
+        onCancel={() => setConfirmingDelete(false)}
+      />
       {successMsg && <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />}
       {errorMsg && <ErrorModal message={errorMsg} onClose={() => setErrorMsg(null)} />}
     </div>
