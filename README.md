@@ -52,7 +52,19 @@ Schema changes: edit `server/db/schema.ts`, run `npm run db:generate -- --name <
 | `npm test` | API integration tests (needs `db:local` and `emulators` running) |
 | `npm run db:local` / `db:migrate` / `db:generate` / `db:check` | Local Postgres and schema migrations |
 | `npm run migrate:export` / `migrate:load` / `migrate:verify` | Firebase to Postgres data migration |
+| `npm run db:backup` / `db:restore` / `admin:grant` | Operations, see below |
 | `npm run emulators` / `seed:local` / `dev:emulators` | Local workflow above (`seed:emulators` seeds only the emulators) |
+
+## Operations
+
+The operations scripts use `DATABASE_URL_UNPOOLED` (or `DATABASE_URL`). Against anything other than a local database, they only run with `--yes`.
+
+- **Backups.** Neon keeps a short point-in-time restore history (Neon console → Branches → Restore). For a copy you control, run `npm run db:backup -- --yes` about once a month and before risky changes. It writes `backups/<timestamp>.json`, a full copy including file contents and personal data. Keep it private and never commit it (`backups/` is git-ignored).
+- **Restore a backup.** Create an empty database (for example a new Neon branch) and run `npm run db:migrate` until it reaches the backup's migration level. Then run `npm run db:restore -- --file backups/<file>.json --yes`. The restore is a single transaction, and it refuses to write into tables that already have data.
+- **No admin can sign in.** Roles live only in Postgres, so fix it with `npm run admin:grant -- --email someone@example.com --yes`. This makes the account an active admin and logs the change in `audit_log`. If the person has a Firebase login but no portal account, the script creates the account; that case needs `GOOGLE_APPLICATION_CREDENTIALS`.
+- **A bad deploy.** In Vercel, go to Deployments, open the previous Production deployment and choose **Instant Rollback**. Database migrations are additive, so the previous version still works.
+- **Uptime.** `GET /api/health` returns `{"ok":true}` when the API can reach the database. Point a free uptime monitor at it (for example UptimeRobot). Errors are logged in Vercel → Logs.
+- **Firebase Auth settings.** In Authentication → Settings, turn off public sign-up (admins create accounts) and turn on email enumeration protection.
 
 ## Project layout
 

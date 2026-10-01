@@ -1260,5 +1260,5 @@ npx vite build
 | **0 (done)** | Firestore rules hardening, profile save allow-list, email-endpoint whitelist | Rules published in the Firebase console; emulator suite passes |
 | **1** | Modularize `index.tsx`, Tailwind build, cleanup, `.gitignore`, env-only Firebase config | App behaves identically; `npm run lint`/`build` clean |
 | **2** | Neon + Vercel project, schema + first migration, `lib/db`/`lib/auth`, API endpoints per page, TanStack Query | Every page served from `/api` on a preview deployment backed by a migrated Neon branch |
-| **3** | ETL rehearsal on a branch, cutover, 30-day read-only Firestore, then decommission | `verify.ts` green; role smoke tests pass in production |
+| **3** ✅ | Accounts-only cutover done 2026-10-01; Firestore read-only for 30 days, then decommission | `verify.ts` green; role smoke tests pass in production |
 | **4** | P1 features (admissions, TOR, grading policy, clearance), then P2/P3 | Per-feature |

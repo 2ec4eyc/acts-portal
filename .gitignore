@@ -7,3 +7,4 @@ migration-data/
 .local/
 .vercel/
 *-debug.log
+backups/
