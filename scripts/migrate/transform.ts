@@ -73,7 +73,12 @@ const ts = (v?: string | null) => (v && !Number.isNaN(Date.parse(v)) ? new Date(
 const legacyTs = (v?: string) => ts(v) ?? ts(v?.replace(/^[A-Za-z]+, /, "").replace(" at ", " "));
 const blank = (v?: string) => (v && v.trim() ? v.trim() : null);
 
-export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-data") {
+export type TransformOptions = {
+  /** Only accounts (users, roles, personal details, student placement); academic records start empty. */
+  accountsOnly?: boolean;
+};
+
+export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-data", opts: TransformOptions = {}) {
   const problems: string[] = [];
   const read = <T>(name: string, schema: z.ZodType<T>): T[] => {
     let raw: unknown[];
@@ -95,12 +100,14 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
 
   const active = read("users", FsUser);
   const archived = read("archived_users", FsUser).map((u) => ({ ...u, status: "Archived" as const }));
-  const courseDocs = [
+  // In accounts-only mode the academic collections aren't read at all.
+  const academic = !opts.accountsOnly;
+  const courseDocs = academic ? [
     ...read("courses", FsCourse).map((c) => ({ ...c, trashed: false })),
     ...read("trash", FsCourse).map((c) => ({ ...c, trashed: true })),
-  ];
-  const attendance = read("attendance", FsAttendance);
-  const files = read("uploaded_files", FsFile);
+  ] : [];
+  const attendance = academic ? read("attendance", FsAttendance) : [];
+  const files = academic ? read("uploaded_files", FsFile) : [];
 
   const out = {
     users: [] as Row<typeof s.users>[],
@@ -164,7 +171,7 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
       emergencyFirstName: blank(u.emergencyFirstName), emergencyLastName: blank(u.emergencyLastName),
       emergencyRelationship: blank(u.emergencyRelationship), emergencyContactNumber: blank(u.emergencyContactNumber),
     });
-    for (const [i, h] of u.editHistory.entries()) {
+    for (const [i, h] of (academic ? u.editHistory : []).entries()) {
       out.auditLog.push({
         action: "legacy.edit_history", entity: "user", entityId: id,
         data: h, at: legacyTs(h.timestamp) ?? new Date(0),
@@ -199,6 +206,13 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
   }
 
   // --- courses + trash -> courses (catalog by name), course_offerings, offering_meetings
+  const nameKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
+  const staffByName = new Map<string, string>();
+  for (const u of out.users) {
+    if (u.role === "student") continue;
+    staffByName.set(nameKey(`${u.lastName}, ${u.firstName}`), u.id!);
+    staffByName.set(nameKey(`${u.firstName} ${u.lastName}`), u.id!);
+  }
   const offeringId = new Map<string, string>(); // firestore course id -> uuid
   for (const c of courseDocs) {
     if (offeringId.has(c._id)) { problems.push(`courses/${c._id}: in both courses and trash (kept the first)`); continue; }
@@ -208,16 +222,21 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
     offeringId.set(c._id, id);
     const sy = blank(c.schoolYear);
     if (!sy) problems.push(`courses/${c._id}: no school year (assigned to "unknown")`);
-    let instructorId: string | null = null;
-    if (c.instructorId) {
-      instructorId = userId.get(c.instructorId) ?? null;
-      if (!instructorId) problems.push(`courses/${c._id}: instructor ${c.instructorId} not found`);
-    } else if (c.professor) {
-      problems.push(`courses/${c._id}: instructor only given by name "${c.professor}" (assign manually)`);
+    // Like the app: the instructor is the linked account, else a staff member whose "Last, First"
+    // (or "First Last") matches the typed name; otherwise the name is kept as display text.
+    let instructorId: string | null = c.instructorId ? userId.get(c.instructorId) ?? null : null;
+    let instructorLabel: string | null = null;
+    if (c.instructorId && !instructorId) problems.push(`courses/${c._id}: linked instructor ${c.instructorId} not found`);
+    if (!instructorId && blank(c.professor)) {
+      instructorId = staffByName.get(nameKey(c.professor!)) ?? null;
+      if (!instructorId) {
+        instructorLabel = c.professor!.trim();
+        problems.push(`courses/${c._id}: instructor "${instructorLabel}" has no account (shown as text; assign an account so they can grade)`);
+      }
     }
     out.offerings.push({
       id, legacyId: c._id, courseId: out.courses.get(key)!.id, termId: termId(sy ?? "unknown", semester(c.semester)),
-      yearLevel: yearLevel(c.yearLevel), instructorId,
+      yearLevel: yearLevel(c.yearLevel), instructorId, instructorLabel,
       deletedAt: c.trashed ? (ts(c.archivedAt) ?? new Date(0)) : null,
       ...(ts(c.createdAt) ? { createdAt: ts(c.createdAt)! } : {}),
     });
@@ -236,7 +255,7 @@ export function transform(dir = process.env.MIGRATION_DATA_DIR ?? "migration-dat
   }
 
   // --- users[].grades[] -> enrollments + grades (a grade entry's id is the course doc id)
-  for (const u of people) {
+  for (const u of academic ? people : []) {
     if (u.role !== "student") continue;
     const studentId = userId.get(u.uid ?? u._id)!;
     const seen = new Set<string>();

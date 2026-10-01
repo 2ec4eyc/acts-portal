@@ -68,7 +68,7 @@ describe("POST /api/users", () => {
       yearLevels: [{ yearLevel: 1, schoolYear: "2026-2027" }],
     });
     const { rows } = await f.pool.query("SELECT count(*)::int AS n FROM enrollments WHERE student_id = $1", [r.body.id]);
-    assert.equal(rows[0].n, 2, "enrolled in both 1st-year 2026-2027 offerings");
+    assert.equal(rows[0].n, 3, "enrolled in all three 1st-year 2026-2027 offerings");
     assert.ok(await signIn("new.student@acts.test", "secret123"));
   });
   test("duplicate emails and student numbers are rejected", async () => {

@@ -9,10 +9,9 @@ import {
   Download,
   FileText,
 } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
-import { db } from '../../lib/firebase';
-import { OperationType, handleFirestoreError } from '../../lib/firestoreErrors';
+import { downloadMaterial, fetchFiles } from '../../lib/data';
+import { live } from '../../lib/live';
 import type { Course } from '../../types';
 
 export const CalendarDayModal = ({ 
@@ -42,16 +41,15 @@ export const CalendarDayModal = ({
     if (!data || data.courses.length === 0) return;
     setNotesLoading(true);
     const courseIds = data.courses.map(c => c.id);
-    const q = query(collection(db, "uploaded_files"), where("category", "==", "notes"));
-    const unsub = onSnapshot(q, (snapshot) => {
+    return live(() => fetchFiles({ category: 'notes' }), (files) => {
       const notesMap: {[courseId: string]: any[]} = {};
-      snapshot.forEach(docSnap => {
-        const file = docSnap.data();
+      files.forEach(file => {
+        if (file.archived) return;
         if (courseIds.includes(file.courseId)) {
           if (!notesMap[file.courseId]) {
             notesMap[file.courseId] = [];
           }
-          notesMap[file.courseId].push({ ...file, id: docSnap.id });
+          notesMap[file.courseId].push(file);
         }
       });
       setCourseNotes(notesMap);
@@ -59,10 +57,7 @@ export const CalendarDayModal = ({
     }, (error) => {
       console.error("Error fetching notes for calendar modal:", error);
       setNotesLoading(false);
-      handleFirestoreError(error, OperationType.LIST, "uploaded_files");
     });
-
-    return () => unsub();
   }, [data]);
 
   return (
@@ -130,8 +125,8 @@ export const CalendarDayModal = ({
                         <div key={file.id} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-fb-border/60 hover:border-fb-blue/20 hover:shadow-sm transition-all">
                           <span className="text-[11px] font-bold text-fb-textPrimary truncate max-w-[160px] md:max-w-[200px]" title={file.fileName}>{file.fileName}</span>
                           <a 
-                            href={file.fileData}
-                            download={file.fileName}
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => alert("Download failed: " + err.message)); }}
                             className="flex items-center gap-1 py-2 px-3 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
                           >
                             <Download size={10} />

@@ -7,21 +7,12 @@ import {
   ChevronDown,
   Check,
 } from 'lucide-react';
-import {
-  doc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-  Timestamp,
-} from 'firebase/firestore';
 
 import { StudentProfileViewModal } from '../components/modals/StudentProfileViewModal';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { fetchAttendance, fetchCourses, fetchUsers, setGrade } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
-import type { Course, EditHistoryEntry, UserProfile } from '../types';
+import type { Course, UserProfile } from '../types';
 
 export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -38,44 +29,21 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const unsubAttendance = onSnapshot(collection(db, "attendance"), (snapshot) => {
-      const list = [] as any[];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data(), id: docSnap.id });
-      });
-      setAttendanceRecords(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "attendance");
+    // The teacher's active courses, and attendance for just those courses.
+    const stopCourses = live(async () => {
+      const list = (await fetchCourses()).filter((data) => data.instructorId === profile.uid || data.professor === formatName(profile));
+      const attendance = (await Promise.all(list.map((c) => fetchAttendance({ courseId: c.id })))).flat();
+      return { list, attendance };
+    }, ({ list, attendance }) => {
+      setCourses(list);
+      setAttendanceRecords(attendance);
     });
 
-    const unsubCourses = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Course;
-        if (data.status !== 'archived' && (data.instructorId === profile.uid || data.professor === formatName(profile))) {
-          list.push({ ...data, id: docSnap.id });
-        }
-      });
-      setCourses(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "courses");
-    });
-    
-    const q = query(collection(db, "users"), where("role", "==", "student"));
-    const unsubStudents = onSnapshot(q, (snapshot) => {
-      const list: UserProfile[] = [];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data() as UserProfile, uid: docSnap.id });
-      });
-      setStudents(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "users");
-    });
+    const stopStudents = live(() => fetchUsers({ role: 'student' }), setStudents);
 
     return () => {
-      unsubAttendance();
-      unsubCourses();
-      unsubStudents();
+      stopCourses();
+      stopStudents();
     };
   }, [profile.uid, profile]);
 
@@ -115,49 +83,8 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
       const student = students.find(s => s.uid === studentId);
       if (!student) return;
       
-      const studentRef = doc(db, "users", studentId);
-      let updatedGrades = [...(student.grades || [])];
-      const existingIndex = updatedGrades.findIndex(g => g.id === courseId);
-      
-      const newGradeData = {
-        id: courseId,
-        courseName,
-        yearLevel,
-        semester,
-        gradeValue: editFormData.isIncomplete ? '' : Number(editFormData.gradeValue),
-        isIncomplete: editFormData.isIncomplete,
-        updatedAt: Timestamp.now()
-      };
-      
-      if (existingIndex >= 0) {
-        updatedGrades[existingIndex] = newGradeData;
-      } else {
-        updatedGrades.push(newGradeData);
-      }
-
-      // Record history
-      const historyEntry: EditHistoryEntry = {
-        id: `HIST-${Date.now()}`,
-        editedBy: formatName(profile) || profile.email,
-        action: `Updated grade for ${courseName}`,
-        timestamp: new Date().toLocaleString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric', 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        details: `Grade: ${editFormData.isIncomplete ? 'Incomplete' : editFormData.gradeValue}`
-      };
-
-      const existingHistory = [...(student.editHistory || [])];
-      existingHistory.push(historyEntry);
-      
-      await updateDoc(studentRef, { 
-        grades: updatedGrades,
-        editHistory: existingHistory
-      });
+      // Saved with the teacher as editor; the server records the change in the student's history.
+      await setGrade(student.uid, courseId, editFormData.isIncomplete ? '' : Number(editFormData.gradeValue), editFormData.isIncomplete);
       setEditingId(null);
     } catch (err: any) {
       console.error("Error updating grade:", err);

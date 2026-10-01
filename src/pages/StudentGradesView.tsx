@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, ChevronDown } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { fetchAttendance, fetchCourses } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import { calculateGPA } from '../lib/gpa';
 import type { Course, UserProfile } from '../types';
@@ -16,37 +15,16 @@ export const StudentGradesView = ({ profile }: { profile: UserProfile }) => {
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "attendance"), where("studentId", "==", profile.uid));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list = [] as any[];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data(), id: docSnap.id });
-      });
-      setAttendanceRecords(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "attendance");
-    });
-    return () => unsub();
+    return live(() => fetchAttendance({ studentId: profile.uid }), setAttendanceRecords);
   }, [profile.uid]);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Course;
-        // Filter by student's school year history
-        const relevantYear = yearLevelFilter === '1st Year' ? profile.firstYearSchoolYear : profile.secondYearSchoolYear;
-        if (relevantYear && data.schoolYear === relevantYear) {
-          list.push({ ...data, id: docSnap.id });
-        }
-      });
-      setCourses(list);
+    return live(fetchCourses, (all) => {
+      // Filter by student's school year history
+      const relevantYear = yearLevelFilter === '1st Year' ? profile.firstYearSchoolYear : profile.secondYearSchoolYear;
+      setCourses(all.filter((data) => relevantYear && data.schoolYear === relevantYear));
       setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, "courses");
-    });
-    return () => unsub();
+    }, () => setLoading(false));
   }, [yearLevelFilter, profile.firstYearSchoolYear, profile.secondYearSchoolYear]);
 
   const getStatus = (gradeValue: number | '', isIncomplete: boolean) => {

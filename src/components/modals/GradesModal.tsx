@@ -9,25 +9,18 @@ import {
   Clock,
   ArrowDown,
 } from 'lucide-react';
-import {
-  doc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-} from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 import { HistoryModal } from './HistoryModal';
 import { StudentProfileViewModal } from './StudentProfileViewModal';
 import { PermissionDeniedGate } from '../PermissionDeniedGate';
-import { db } from '../../lib/firebase';
-import { OperationType, handleFirestoreError } from '../../lib/firestoreErrors';
+import { ApiError } from '../../lib/api';
+import { fetchAttendance, fetchCourses, fetchHistory, fetchUser, resetGrade, setGrade } from '../../lib/data';
+import { live } from '../../lib/live';
 import { formatName } from '../../lib/format';
 import { calculateGPA } from '../../lib/gpa';
-import type { Course, EditHistoryEntry, Grade, UserProfile } from '../../types';
+import type { Course, EditHistoryEntry, UserProfile } from '../../types';
 
 export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { student: UserProfile, adminProfile: UserProfile, onClose: () => void }) => {
   const [student, setStudent] = useState<UserProfile>(propStudent);
@@ -43,17 +36,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
   const [confirmResetId, setConfirmResetId] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, "attendance"), where("studentId", "==", propStudent.uid));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list = [] as any[];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data(), id: docSnap.id });
-      });
-      setAttendanceRecords(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "attendance");
-    });
-    return () => unsub();
+    return live(() => fetchAttendance({ studentId: propStudent.uid }), setAttendanceRecords);
   }, [propStudent.uid]);
 
   const [editFormData, setEditFormData] = useState<{gradeValue: number | '', isIncomplete: boolean}>({
@@ -61,34 +44,28 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
     isIncomplete: false
   });
 
-  // Listen to student document changes for realtime updates
+  // Keep the student's record current (refreshes after every save)
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "users", propStudent.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        setStudent({ ...docSnap.data(), uid: docSnap.id } as UserProfile);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${propStudent.uid}`);
-    });
-    return () => unsub();
+    return live(() => fetchUser(propStudent.uid), setStudent);
   }, [propStudent.uid]);
 
+  // Edit history is loaded when the history panel is opened
+  const [history, setHistory] = useState<EditHistoryEntry[]>([]);
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data(), id: docSnap.id } as Course);
-      });
+    if (!showHistory) return;
+    return live(() => fetchHistory(propStudent.uid), setHistory);
+  }, [showHistory, propStudent.uid]);
+
+  useEffect(() => {
+    return live(fetchCourses, (list) => {
       setCourses(list);
       setPermissionError(false);
     }, (error) => {
-      if (error.code === 'permission-denied') {
+      if (error instanceof ApiError && error.status === 403) {
         console.warn("Permission denied for courses registry.");
         setPermissionError(true);
       }
-      handleFirestoreError(error, OperationType.LIST, "courses");
     });
-    return () => unsub();
   }, []);
 
   const getStatus = (gradeValue: number | '', isIncomplete: boolean) => {
@@ -102,48 +79,8 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
   const handleUpdateGrade = async (courseId: string, courseName: string, courseYear?: string, courseSem?: string) => {
     setLoading(true);
     try {
-      const existingGrades = [...(student.grades || [])];
-      const gradeIndex = existingGrades.findIndex(g => g.id === courseId);
-      
-      const gradeEntry: Grade = {
-        id: courseId,
-        courseName: courseName,
-        gradeValue: editFormData.isIncomplete ? '' : (editFormData.gradeValue === '' ? '' : Number(editFormData.gradeValue)),
-        isIncomplete: editFormData.isIncomplete,
-        dateReleased: new Date().toISOString().split('T')[0],
-        yearLevel: (courseYear as any) || yearLevelFilter,
-        semester: (courseSem as any) || semesters[0] // Fallback if not provided
-      };
-
-      if (gradeIndex > -1) {
-        existingGrades[gradeIndex] = gradeEntry;
-      } else {
-        existingGrades.push(gradeEntry);
-      }
-
-      // Record history
-      const historyEntry: EditHistoryEntry = {
-        id: `HIST-${Date.now()}`,
-        editedBy: formatName(adminProfile) || adminProfile.email,
-        action: `Updated grade for ${courseName}`,
-        timestamp: new Date().toLocaleString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric', 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        details: `Grade: ${editFormData.isIncomplete ? 'Incomplete' : editFormData.gradeValue}`
-      };
-
-      const existingHistory = [...(student.editHistory || [])];
-      existingHistory.push(historyEntry);
-
-      await updateDoc(doc(db, "users", student.uid), { 
-        grades: existingGrades,
-        editHistory: existingHistory
-      });
+      // The server records the change (with the editor) in the student's history.
+      await setGrade(student.uid, courseId, editFormData.isIncomplete ? '' : (editFormData.gradeValue === '' ? '' : Number(editFormData.gradeValue)), editFormData.isIncomplete);
       setEditingGradeId(null);
     } catch (err) {
       alert("Failed to update records.");
@@ -155,32 +92,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
   const handleResetGrade = async (courseId: string, courseName: string) => {
     setLoading(true);
     try {
-      const existingGrades = [...(student.grades || [])];
-      const updatedGrades = existingGrades.filter(g => g.id !== courseId);
-
-      // Record history
-      const historyEntry: EditHistoryEntry = {
-        id: `HIST-${Date.now()}`,
-        editedBy: formatName(adminProfile) || adminProfile.email,
-        action: `Reset grade for ${courseName}`,
-        timestamp: new Date().toLocaleString('en-US', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric', 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        details: `Grade reset to Pending`
-      };
-
-      const existingHistory = [...(student.editHistory || [])];
-      existingHistory.push(historyEntry);
-
-      await updateDoc(doc(db, "users", student.uid), { 
-        grades: updatedGrades,
-        editHistory: existingHistory
-      });
+      await resetGrade(student.uid, courseId);
     } catch (err) {
       alert("Failed to reset grade.");
     } finally {
@@ -674,7 +586,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
           <button onClick={onClose} className="px-10 py-4 bg-white hover:bg-fb-hover text-fb-textPrimary border-2 border-fb-border rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95">Exit Records</button>
         </div>
       </div>
-      {showHistory && <HistoryModal history={student.editHistory || []} onClose={() => setShowHistory(false)} />}
+      {showHistory && <HistoryModal history={history} onClose={() => setShowHistory(false)} />}
       {showProfile && <StudentProfileViewModal student={student} onClose={() => setShowProfile(false)} />}
 
       {/* Hidden PDF Template */}

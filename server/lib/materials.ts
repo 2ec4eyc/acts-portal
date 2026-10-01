@@ -51,7 +51,7 @@ export async function listMaterials(db: DbOrTx, user: User, filter: Filter = {},
         : undefined,
     ))
     .orderBy(desc(materials.createdAt));
-  return rows.map(({ uploaderFirstName, uploaderLastName, ...r }) => ({ ...r, uploaderName: `${uploaderFirstName} ${uploaderLastName}` }));
+  return rows.map((r) => ({ ...r, uploaderName: `${r.uploaderFirstName} ${r.uploaderLastName}` }));
 }
 
 export async function getVisibleMaterial(db: DbOrTx, user: User, id: string) {

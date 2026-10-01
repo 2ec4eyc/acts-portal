@@ -5,7 +5,10 @@ import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { mkdirSync, writeFileSync } from "node:fs";
 
-const COLLECTIONS = ["users", "archived_users", "courses", "trash", "attendance", "uploaded_files", "settings"];
+// --accounts-only: just the account collections (less personal data on disk).
+const COLLECTIONS = process.argv.includes("--accounts-only")
+  ? ["users", "archived_users"]
+  : ["users", "archived_users", "courses", "trash", "attendance", "uploaded_files", "settings"];
 const projectId = process.env.FIREBASE_PROJECT_ID ?? "acts-bible-school-portal";
 
 const app = initializeApp(process.env.FIRESTORE_EMULATOR_HOST ? { projectId } : { projectId, credential: applicationDefault() });

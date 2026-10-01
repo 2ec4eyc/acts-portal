@@ -934,12 +934,14 @@ Profile photos (`photoURL` data URLs) follow the same pattern, into `avatars/`.
 3. Spot-check 10 students by hand in the new UI against the old one.
 4. Every entry in the problem report is resolved or explicitly accepted.
 
+**Accounts-only start (chosen for this cutover).** Pass `--accounts-only` to `export.ts`, `load.ts` and `verify.ts` (`npm run migrate:load -- --accounts-only`). Only `users` and `archived_users` are exported and loaded: every account keeps its Firebase login, role, profile, student number, year level, batch and school year. Courses, enrollments, grades, grade history, attendance and uploaded files are not carried over, so admins recreate the courses in the portal after cutover and students are enrolled automatically by year level, batch and school year. The Firestore data stays available read-only during the rollback window.
+
 **Cutover runbook.** The dataset is small (hundreds of users), so a one-time cutover is simpler and safer than running both databases in parallel:
-1. Rehearse steps 3–6 against a Neon *branch* until they're clean.
+1. *(Optional)* Rehearse steps 3–6 against a Neon *branch*, such as a PR preview's.
 2. Announce a window (about 1 hour, outside class time).
-3. **Freeze writes:** publish Firestore rules with `allow write: if false;` everywhere (reads stay open).
-4. Run `export.ts`, then `load.ts` against production (unpooled URL), then `verify.ts`.
-5. Deploy the API-backed frontend (promote the Vercel deployment).
+3. **Freeze writes:** publish `firestore.freeze.rules` (the current read rules, `allow write: if false;` everywhere).
+4. From the release branch, with `DATABASE_URL_UNPOOLED` set to production's unpooled URL: run `npm run db:migrate` **first** (production only has the migrations already merged to `main`, and the load writes columns added by later ones), then `export.ts`, `load.ts` and `verify.ts` (all three with `--accounts-only` for the accounts-only start).
+5. Merge the release PR so Vercel deploys the API-backed frontend; its build re-runs migrations as a no-op.
 6. Smoke-test as each role: student, teacher, secretary, president, admin.
 7. Keep Firestore read-only for 30 days as the rollback path. Rolling back means re-publishing the old rules and redeploying the previous Vercel deployment (instant rollback). Then export a final archive and delete the Firestore data.
 

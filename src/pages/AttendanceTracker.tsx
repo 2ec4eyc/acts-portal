@@ -6,16 +6,9 @@ import {
   ChevronDown,
   CheckSquare,
 } from 'lucide-react';
-import {
-  doc,
-  setDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-} from 'firebase/firestore';
 
-import { db } from '../lib/firebase';
+import { fetchAttendance, fetchCourses, fetchUsers, saveAttendance } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { AttendanceRecord, Course, UserProfile } from '../types';
 
@@ -45,52 +38,26 @@ export const AttendanceTracker = ({ profile }: { profile: UserProfile }) => {
 
 
   useEffect(() => {
-    const unsubCourses = onSnapshot(query(collection(db, "courses")), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Course;
-        if (data.status !== 'archived') {
-          list.push({ ...data, id: docSnap.id });
-        }
-      });
-      setCourses(list);
-    }, (error) => {
-      console.error("Error fetching courses:", error);
-    });
-    
-    const unsubStudents = onSnapshot(query(collection(db, "users"), where("role", "==", "student")), (snapshot) => {
-      const list: UserProfile[] = [];
-      snapshot.forEach(docSnap => {
-        list.push({ ...docSnap.data() as UserProfile, uid: docSnap.id });
-      });
-      setStudents(list);
-    }, (error) => {
-      console.error("Error fetching students:", error);
-    });
-
+    const stopCourses = live(fetchCourses, setCourses, (error) => console.error("Error fetching courses:", error));
+    const stopStudents = live(() => fetchUsers({ role: 'student' }), setStudents, (error) => console.error("Error fetching students:", error));
     return () => {
-      unsubCourses();
-      unsubStudents();
+      stopCourses();
+      stopStudents();
     };
   }, []);
 
   useEffect(() => {
     if (selectedCourse && selectedDate) {
       setLoading(true);
-      const q = query(collection(db, "attendance"), where("courseId", "==", selectedCourse), where("date", "==", selectedDate));
-      const unsub = onSnapshot(q, (snapshot) => {
+      return live(() => fetchAttendance({ courseId: selectedCourse, date: selectedDate }), (list) => {
         const records: Record<string, AttendanceRecord> = {};
-        snapshot.forEach(docSnap => {
-          const data = docSnap.data() as AttendanceRecord;
-          records[data.studentId] = { ...data, id: docSnap.id };
-        });
+        list.forEach(data => { records[data.studentId] = data; });
         setAttendanceRecords(records);
         setLoading(false);
       }, (error) => {
         console.error("Error fetching attendance:", error);
         setLoading(false);
       });
-      return () => unsub();
     } else {
       setAttendanceRecords({});
     }
@@ -131,18 +98,7 @@ export const AttendanceTracker = ({ profile }: { profile: UserProfile }) => {
         };
       });
 
-      const promises = finalRecords.map((record: any) => {
-        const docId = record.id || `${selectedCourse}_${selectedDate}_${record.studentId}`;
-        const ref = doc(db, "attendance", docId);
-        return setDoc(ref, {
-          ...record,
-          id: docId,
-          courseId: selectedCourse,
-          date: selectedDate,
-          createdAt: record.createdAt || new Date().toISOString()
-        }, { merge: true });
-      });
-      await Promise.all(promises);
+      await saveAttendance(selectedCourse, selectedDate, finalRecords as AttendanceRecord[]);
       alert("Attendance saved successfully!");
     } catch (error: any) {
       alert("Error saving attendance: " + error.message);

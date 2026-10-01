@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function callerDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    function callerRole() {
+      return exists(callerDoc()) ? get(callerDoc()).data.role : null;
+    }
+    function isAdmin() {
+      return isAuthenticated() &&
+        (("email" in request.auth.token && request.auth.token.email == "actsportal2026@gmail.com") ||
+         callerRole() == 'admin');
+    }
+    function isTeacher() {
+      return isAuthenticated() && callerRole() == 'teacher';
+    }
+    function isExecutive() {
+      return isAuthenticated() && callerRole() in ['president', 'vice president'];
+    }
+    function isStaff() {
+      return isAdmin() || isTeacher() || isExecutive();
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['admin', 'student', 'president', 'vice president', 'teacher'];
+    }
+
+    // Fields a user may change on their own profile. Everything else
+    // (role, status, grades, editHistory, enrollment fields, ...) is
+    // managed by staff. Keep in sync with PROFILE_SELF_EDITABLE_FIELDS in index.tsx.
+    function selfEditableFields() {
+      return [
+        'firstName', 'middleName', 'lastName', 'fullName', 'photoURL',
+        'contactNumber', 'gender', 'birthDate',
+        'address', 'city', 'province', 'postalCode',
+        'church', 'pastorName',
+        'holyGhostBaptismDate', 'holyGhostBaptismLocation',
+        'waterBaptismDate', 'waterBaptismLocation',
+        'emergencyFirstName', 'emergencyLastName',
+        'emergencyRelationship', 'emergencyContactNumber',
+        'currentSessionId'
+      ];
+    }
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    // CUTOVER FREEZE: reads as before, no writes anywhere. Publish this at the start of the cutover
+    // window; to roll back, publish firestore.rules again.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      allow write: if false;
+    }
+    match /archived_users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      allow write: if false;
+    }
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    match /trash/{courseId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /uploaded_files/{fileId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+  }
+}

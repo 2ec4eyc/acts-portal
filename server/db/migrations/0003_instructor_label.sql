@@ -1,0 +1,1 @@
+ALTER TABLE "course_offerings" ADD COLUMN "instructor_label" text;

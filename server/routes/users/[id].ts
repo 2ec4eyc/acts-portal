@@ -1,10 +1,10 @@
 import { can, requireUser } from "../../lib/auth.js";
 import { db } from "../../lib/db.js";
-import { HttpError, methods, uuidParam } from "../../lib/http.js";
-import { loadProfile } from "../../lib/profiles.js";
+import { HttpError, methods, queryParam, uuidParam } from "../../lib/http.js";
+import { listProfilesWithGrades, loadProfile } from "../../lib/profiles.js";
 import { AccountUpdate, deleteAccount, getUserRow, updateAccount } from "../../lib/users.js";
 
-// GET    /api/users/:id: one account (staff, or the user themself).
+// GET    /api/users/:id[?include=grades]: one account (staff, or the user themself).
 // PATCH  /api/users/:id: edit an account. Executives may edit student accounts; staff accounts,
 //        roles, emails and staff categories need an admin.
 // DELETE /api/users/:id: permanently delete an archived account (admins only).
@@ -13,7 +13,9 @@ export default methods({
     const user = await requireUser(req);
     const id = uuidParam(req);
     if (id !== user.id && !can(user, "users:read")) throw new HttpError(403, "Forbidden");
-    const profile = await loadProfile(db, id);
+    const profile = queryParam(req, "include") === "grades"
+      ? (await listProfilesWithGrades(db, { ids: [id] }))[0]
+      : await loadProfile(db, id);
     if (!profile) throw new HttpError(404, "User not found");
     res.status(200).json(profile);
   },

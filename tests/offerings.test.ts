@@ -32,7 +32,7 @@ describe("GET /api/offerings", () => {
     for (const role of ["admin", "teacher", "student"] as const) {
       const r = await call(list, { token: f.tokens[role] });
       assert.equal(r.status, 200);
-      assert.deepEqual(r.body.map((o: any) => o.name).sort(), ["Hermeneutics", "Old Testament Survey"]);
+      assert.deepEqual(r.body.map((o: any) => o.name).sort(), ["Hermeneutics", "Old Testament Survey", "Spiritual Formation"]);
     }
     const ot = (await call(list, { token: f.tokens.student })).body.find((o: any) => o.name === "Old Testament Survey");
     assert.equal(ot.instructorName, "Tess Teacher");
@@ -42,8 +42,19 @@ describe("GET /api/offerings", () => {
   test("only admins can include archived offerings", async () => {
     assert.equal((await call(list, { token: f.tokens.student, query: { includeDeleted: "true" } })).status, 403);
     const r = await call(list, { token: f.tokens.admin, query: { includeDeleted: "true" } });
-    assert.equal(r.body.length, 3);
+    assert.equal(r.body.length, 4);
     assert.ok(r.body.find((o: any) => o.name === "Deleted Course").deletedAt);
+  });
+  test("migrated typed teacher names: matched to an account, else kept as text", async () => {
+    const all = (await call(list, { token: f.tokens.admin, query: { includeDeleted: "true" } })).body;
+    const byName = Object.fromEntries(all.map((o: any) => [o.name, o]));
+    // "teacher, tess" (the app's "Last, First" format, any case) is Tess Teacher's account.
+    assert.equal(byName["Spiritual Formation"].instructorId, f.ids.teacher);
+    assert.equal(byName["Spiritual Formation"].instructorLastName, "Teacher");
+    // "Other Prof" has no account: shown as text, and no one can grade as them.
+    assert.equal(byName["Hermeneutics"].instructorId, null);
+    assert.equal(byName["Hermeneutics"].instructorName, "Other Prof");
+    assert.equal(byName["Deleted Course"].instructorName, "X");
   });
   test("requires sign-in", async () => {
     assert.equal((await call(list)).status, 401);

@@ -9,21 +9,10 @@ import {
   Download,
   FileText,
 } from 'lucide-react';
-import {
-  doc,
-  setDoc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-  Timestamp,
-  deleteDoc,
-} from 'firebase/firestore';
 
 import { ConfirmModal } from '../components/modals/ConfirmModal';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { deleteFile, downloadMaterial, fetchCourses, fetchFiles, setFileArchived, uploadFile } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
 
@@ -61,43 +50,26 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
   });
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "courses"), (snapshot) => {
-      const list: Course[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Course;
-        if (data.status !== 'archived' && (data.instructorId === profile.uid || data.professor === formatName(profile))) {
-          list.push({ ...data, id: docSnap.id });
-        }
-      });
+    return live(fetchCourses, (all) => {
+      const list: Course[] = all.filter((data) => data.instructorId === profile.uid || data.professor === formatName(profile));
       setCourses(list);
       setCoursesLoading(false);
       if (list.length > 0 && !selectedCourseId) {
         setSelectedCourseId(list[0].id);
       }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "courses");
     });
-    return () => unsub();
   }, [profile.uid, selectedCourseId]);
 
   useEffect(() => {
-    const q = query(collection(db, "uploaded_files"), where("teacherUid", "==", profile.uid));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list: any[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        list.push({ ...data, id: docSnap.id });
-      });
+    return live(() => fetchFiles({ mine: true }), (files) => {
+      const list: any[] = [...files];
       list.sort((a, b) => {
         const t1 = a.createdAt?.seconds || 0;
         const t2 = b.createdAt?.seconds || 0;
         return t2 - t1;
       });
       setUploadedFiles(list);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, "uploaded_files");
     });
-    return () => unsub();
   }, [profile.uid]);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -167,21 +139,12 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
 
     setLoading(true);
     try {
-      const course = courses.find(c => c.id === selectedCourseId);
-      const courseName = course ? course.name : 'Unknown Course';
-
-      const fileRef = doc(collection(db, "uploaded_files"));
-      const newFilePayload: any = {
-        id: fileRef.id,
+      const newFilePayload: Parameters<typeof uploadFile>[0] = {
         courseId: selectedCourseId,
-        courseName,
-        teacherName: formatName(profile),
-        teacherUid: profile.uid,
-        category,
+        category: category as 'notes' | 'exams' | 'activity',
         fileName,
         fileData,
         fileType,
-        createdAt: Timestamp.now()
       };
 
       if (category === 'exams' || category === 'activity') {
@@ -191,7 +154,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
         }
       }
 
-      await setDoc(fileRef, newFilePayload);
+      await uploadFile(newFilePayload);
       setSuccessMsg(`File "${fileName}" successfully uploaded under category "${category === 'notes' ? 'Notes' : category === 'exams' ? 'Exam' : 'Activity'}".`);
       
       setFileName('');
@@ -216,7 +179,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
       variant: 'warning',
       onConfirm: async () => {
         try {
-          await updateDoc(doc(db, "uploaded_files", fileId), { archived: true });
+          await setFileArchived(fileId, true);
           setSuccessMsg(`File "${name}" has been successfully moved to the archive folder.`);
         } catch (err: any) {
           console.error("Archive error:", err);
@@ -237,7 +200,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
       variant: 'info',
       onConfirm: async () => {
         try {
-          await updateDoc(doc(db, "uploaded_files", fileId), { archived: false });
+          await setFileArchived(fileId, false);
           setSuccessMsg(`File "${name}" has been restored to active list.`);
         } catch (err: any) {
           console.error("Restore error:", err);
@@ -258,7 +221,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteDoc(doc(db, "uploaded_files", fileId));
+          await deleteFile(fileId);
           setSuccessMsg(`File "${name}" has been permanently deleted from the database.`);
         } catch (err: any) {
           console.error("Delete error:", err);
@@ -463,8 +426,8 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
 
                   <div className="flex items-center gap-2 self-end md:self-auto">
                     <a 
-                      href={file.fileData}
-                      download={file.fileName}
+                      href="#"
+                      onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => alert("Download failed: " + err.message)); }}
                       className="p-2.5 bg-white text-fb-blue hover:bg-fb-blue hover:text-white rounded-xl border border-fb-border transition-all shadow-sm flex items-center justify-center"
                       title="Download"
                     >

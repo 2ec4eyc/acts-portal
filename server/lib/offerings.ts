@@ -32,12 +32,14 @@ export async function listOfferings(db: DbOrTx, opts: { ids?: string[]; includeD
   const rows = await db
     .select({
       id: courseOfferings.id,
+      legacyId: courseOfferings.legacyId,
       name: courses.name,
       courseId: courses.id,
       yearLevel: courseOfferings.yearLevel,
       semester: terms.semester,
       schoolYear: schoolYears.label,
       instructorId: courseOfferings.instructorId,
+      instructorLabel: courseOfferings.instructorLabel,
       instructorFirstName: users.firstName,
       instructorLastName: users.lastName,
       deletedAt: courseOfferings.deletedAt,
@@ -62,7 +64,10 @@ export async function listOfferings(db: DbOrTx, opts: { ids?: string[]; includeD
     const m = byOffering.get(r.id) ?? [];
     return {
       ...r,
-      instructorName: r.instructorId ? `${instructorFirstName} ${instructorLastName}` : null,
+      instructorFirstName: r.instructorId ? instructorFirstName : null,
+      instructorLastName: r.instructorId ? instructorLastName : null,
+      /** The instructor account's name, or the migrated display text when there's no account. */
+      instructorName: r.instructorId ? `${instructorFirstName} ${instructorLastName}` : r.instructorLabel,
       schedule: m.length
         ? {
             startsOn: m[0].startsOn,
@@ -114,7 +119,10 @@ export async function updateOffering(db: DbOrTx, id: string, input: Partial<Offe
   const patch: Partial<typeof courseOfferings.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) patch.courseId = await courseId(db, input.name);
   if (input.yearLevel !== undefined) patch.yearLevel = input.yearLevel;
-  if (input.instructorId !== undefined) patch.instructorId = input.instructorId;
+  if (input.instructorId !== undefined) {
+    patch.instructorId = input.instructorId;
+    if (input.instructorId) patch.instructorLabel = null; // an account replaces any migrated display name
+  }
   if (input.schoolYear !== undefined || input.semester !== undefined) {
     patch.termId = await termId(db, input.schoolYear ?? current.schoolYear, input.semester ?? current.semester);
   }

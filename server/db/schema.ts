@@ -33,6 +33,8 @@ export const users = pgTable("users", {
   staffCategory: staffCategory("staff_category"),
   status: userStatus("status").notNull().default("active"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  /** The browser session allowed to use this account; a newer sign-in replaces it. */
+  currentSessionId: text("current_session_id"),
   ...timestamps,
 }, (t) => [
   uniqueIndex("users_email_lower_uq").on(sql`lower(${t.email})`),
@@ -123,6 +125,8 @@ export const courseOfferings = pgTable("course_offerings", { // one Firestore `c
   yearLevel: smallint("year_level").notNull(),
   schoolType: schoolType("school_type"),
   instructorId: uuid("instructor_id").references(() => users.id, { onDelete: "set null" }),
+  /** Display-only instructor name for migrated courses whose teacher has no account. */
+  instructorLabel: text("instructor_label"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }), // replaces `trash`
   deletedBy: uuid("deleted_by").references(() => users.id, { onDelete: "set null" }),
   ...timestamps,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   User as UserIcon,
@@ -14,13 +14,14 @@ import {
   Upload,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
 
 import { ActsLogo } from './components/ActsLogo';
 import { PermissionDeniedGate } from './components/PermissionDeniedGate';
 import { SidebarItem } from './components/SidebarItem';
-import { auth, db } from './lib/firebase';
-import { OperationType, handleFirestoreError } from './lib/firestoreErrors';
+import { ApiError, claimSession, hasSession, releaseSession, setSessionReplacedHandler } from './lib/api';
+import { fetchMyProfile } from './lib/data';
+import { auth } from './lib/firebase';
+import { live } from './lib/live';
 import { AdminPanel } from './pages/AdminPanel';
 import { AttendanceTracker } from './pages/AttendanceTracker';
 import { CourseManagementPage } from './pages/CourseManagementPage';
@@ -37,19 +38,19 @@ import type { UserProfile } from './types';
 export const App = () => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [accountArchived, setAccountArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [kickedOut, setKickedOut] = useState(false);
-  const isSessionEstablishedRef = useRef(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => { 
       setUser(u); 
       if (!u) { 
         setProfile(null); 
+        setAccountArchived(false);
         setLoading(false); 
-        isSessionEstablishedRef.current = false;
       } else { 
         setLoading(true);
         setActivePage('dashboard'); 
@@ -58,58 +59,40 @@ export const App = () => {
     });
   }, []);
 
+  // Another sign-in to this account replaced this tab's session: sign out here.
   useEffect(() => {
-    if (user) {
-      return onSnapshot(doc(db, "users", user.uid), (snap) => {
-        if (snap.exists()) {
-          const profileData = snap.data() as UserProfile;
-          const localSessionId = sessionStorage.getItem('acts_session_id');
-          
-          if (profileData.currentSessionId && profileData.currentSessionId !== localSessionId) {
-            if (isSessionEstablishedRef.current) {
-              setKickedOut(true);
-              signOut(auth);
-              isSessionEstablishedRef.current = false;
-            } else {
-              // Automatically claim the session for the new login
-              const newSessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-              sessionStorage.setItem('acts_session_id', newSessionId);
-              updateDoc(doc(db, "users", user.uid), { currentSessionId: newSessionId });
-              isSessionEstablishedRef.current = true;
-              setProfile(profileData);
-            }
-          } else {
-            let currentLocalSessionId = localSessionId;
-            if (!currentLocalSessionId) {
-              currentLocalSessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-              sessionStorage.setItem('acts_session_id', currentLocalSessionId);
-              updateDoc(doc(db, "users", user.uid), { currentSessionId: currentLocalSessionId });
-            } else if (profileData.currentSessionId !== currentLocalSessionId) {
-              updateDoc(doc(db, "users", user.uid), { currentSessionId: currentLocalSessionId });
-            }
-            isSessionEstablishedRef.current = true;
-            setProfile(profileData);
-          }
-        } else {
-          // If not in users, check archived_users for potential session
-          getDoc(doc(db, "archived_users", user.uid)).then(snapArch => {
-             if (snapArch.exists()) {
-               setProfile(snapArch.data() as UserProfile);
-             } else {
-               console.warn("User profile document not found in Firestore.");
-               setProfile(null);
-             }
-             setLoading(false);
-          });
-          return;
-        }
+    setSessionReplacedHandler(() => {
+      sessionStorage.removeItem('acts_session_id');
+      setKickedOut(true);
+      signOut(auth);
+    });
+    return () => setSessionReplacedHandler(null);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    let stop: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      // A fresh sign-in (or a new tab) claims the account's session; a reload keeps its own.
+      if (!hasSession()) await claimSession().catch(() => {});
+      if (cancelled) return;
+      stop = live(fetchMyProfile, (data) => {
+        setProfile(data);
+        setAccountArchived(false);
         setLoading(false);
       }, (error) => {
-        console.error("Profile Load Error:", error);
+        if (error instanceof ApiError && error.status === 403) {
+          // No portal account for this login, or it has been deactivated.
+          setProfile(null);
+          setAccountArchived(error.message === 'Account deactivated');
+        } else {
+          console.error("Profile Load Error:", error);
+        }
         setLoading(false);
-        handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
       });
-    }
+    })();
+    return () => { cancelled = true; stop?.(); };
   }, [user]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><RefreshCw className="animate-spin text-fb-blue" size={40} /></div>;
@@ -131,7 +114,7 @@ export const App = () => {
   }
   if (!user) return <Login onLoginSuccess={() => setActivePage('dashboard')} />;
   
-  const isArchived = profile?.status === 'Archived';
+  const isArchived = accountArchived || profile?.status === 'Archived';
   if (user && (!profile || isArchived)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-fb-gray p-4">
@@ -173,12 +156,10 @@ export const App = () => {
   };
 
   const handleLogout = async () => {
-    if (user) {
-      try {
-        await updateDoc(doc(db, "users", user.uid), { currentSessionId: null });
-      } catch (error) {
-        console.error("Error clearing session ID:", error);
-      }
+    try {
+      await releaseSession();
+    } catch (error) {
+      console.error("Error clearing session ID:", error);
     }
     await signOut(auth);
   };

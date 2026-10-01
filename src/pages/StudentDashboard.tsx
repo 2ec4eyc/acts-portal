@@ -9,20 +9,11 @@ import {
   FileText,
   Bell,
 } from 'lucide-react';
-import {
-  doc,
-  updateDoc,
-  collection,
-  onSnapshot,
-  query,
-  where,
-  deleteDoc,
-} from 'firebase/firestore';
 
 import { ActsLogo } from '../components/ActsLogo';
 import { ConfirmModal } from '../components/modals/ConfirmModal';
-import { db } from '../lib/firebase';
-import { OperationType, handleFirestoreError } from '../lib/firestoreErrors';
+import { deleteFile, downloadMaterial, fetchFiles, setFileArchived } from '../lib/data';
+import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
 
@@ -62,13 +53,8 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
   });
 
   useEffect(() => {
-    const q = query(collection(db, "uploaded_files"), where("category", "in", ["exams", "activity"]));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const list: any[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        list.push({ ...data, id: docSnap.id });
-      });
+    return live(async () => [...await fetchFiles({ category: 'exams' }), ...await fetchFiles({ category: 'activity' })], (files) => {
+      const list: any[] = [...files];
       list.sort((a, b) => {
         const t1 = a.createdAt?.seconds || 0;
         const t2 = b.createdAt?.seconds || 0;
@@ -79,10 +65,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
     }, (error) => {
       console.error("Error loading submissions for admin dashboard:", error);
       setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, "uploaded_files");
     });
-
-    return () => unsub();
   }, []);
 
   const filteredSubmissions = submissions.filter(item => {
@@ -108,7 +91,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
       variant: 'warning',
       onConfirm: async () => {
         try {
-          await updateDoc(doc(db, "uploaded_files", fileId), { archived: true });
+          await setFileArchived(fileId, true);
         } catch (error) {
           console.error("Error archiving file:", error);
           alert("Failed to archive the file: " + (error as any).message);
@@ -128,7 +111,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
       variant: 'info',
       onConfirm: async () => {
         try {
-          await updateDoc(doc(db, "uploaded_files", fileId), { archived: false });
+          await setFileArchived(fileId, false);
         } catch (error) {
           console.error("Error restoring file:", error);
           alert("Failed to restore the file: " + (error as any).message);
@@ -148,7 +131,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
       variant: 'danger',
       onConfirm: async () => {
         try {
-          await deleteDoc(doc(db, "uploaded_files", fileId));
+          await deleteFile(fileId);
         } catch (error) {
           console.error("Error permanently deleting file:", error);
           alert("Failed to permanently delete the file: " + (error as any).message);
@@ -294,8 +277,8 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
                   <span className="text-[9px] text-fb-textSecondary/60 font-semibold truncate max-w-[120px]">ID: {item.id}</span>
                   <div className="flex items-center gap-2">
                     <a
-                      href={item.fileData}
-                      download={item.fileName}
+href="#"
+                      onClick={(e) => { e.preventDefault(); downloadMaterial(item).catch((err) => alert("Download failed: " + err.message)); }}
                       className="flex items-center gap-1.5 py-2 px-3.5 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 cursor-pointer"
                     >
                       <Download size={11} />

@@ -1,56 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search, CheckCircle, RefreshCw, X } from 'lucide-react';
-import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 
-import { db } from '../../lib/firebase';
+import { cleanUpRecords } from '../../lib/data';
 import { formatName } from '../../lib/format';
-import type { Course, UserProfile } from '../../types';
+import type { UserProfile } from '../../types';
 
 export const CleanUpRecordsModal = ({ students, onClose, onSuccess, onError }: { students: UserProfile[], onClose: () => void, onSuccess: (msg: string) => void, onError: (msg: string) => void }) => {
-  const [courses, setCourses] = useState<Course[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingCourses, setLoadingCourses] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        const snap = await getDocs(collection(db, "courses"));
-        const list: Course[] = [];
-        snap.forEach(doc => {
-          const data = doc.data() as Course;
-          if (data.status !== 'archived') {
-            list.push({ ...data, id: doc.id });
-          }
-        });
-        setCourses(list);
-      } catch (err) {
-        console.error("Error fetching courses:", err);
-      } finally {
-        setLoadingCourses(false);
-      }
-    };
-    fetchCourses();
-  }, []);
 
   const handleCleanUp = async () => {
     if (selectedStudents.length === 0) return;
     setIsProcessing(true);
     try {
-      const activeCourseIds = new Set(courses.map(c => c.id));
-      const promises = selectedStudents.map(async (uid) => {
-        const student = students.find(s => s.uid === uid);
-        if (!student || !student.grades) return;
-        
-        const originalGrades = student.grades;
-        const cleanedGrades = originalGrades.filter(g => activeCourseIds.has(g.id));
-        
-        if (originalGrades.length !== cleanedGrades.length) {
-          await updateDoc(doc(db, "users", uid), { grades: cleanedGrades });
-        }
-      });
-      await Promise.all(promises);
+      // Removes enrollments (and grades) in archived courses; the server logs each removal.
+      await cleanUpRecords(selectedStudents);
       onSuccess("Successfully cleaned up selected students' records.");
       onClose();
     } catch (err: any) {
@@ -99,11 +64,7 @@ export const CleanUpRecordsModal = ({ students, onClose, onSuccess, onError }: {
           </div>
 
           <div className="flex-1 overflow-y-auto border border-fb-border rounded-xl custom-scrollbar">
-            {loadingCourses ? (
-              <div className="flex items-center justify-center h-full p-8">
-                <RefreshCw className="animate-spin text-fb-blue" size={24} />
-              </div>
-            ) : filteredStudents.length === 0 ? (
+            {filteredStudents.length === 0 ? (
               <div className="p-8 text-center text-fb-textSecondary text-sm font-bold">No students found.</div>
             ) : (
               <div className="divide-y divide-fb-border">
@@ -136,7 +97,7 @@ export const CleanUpRecordsModal = ({ students, onClose, onSuccess, onError }: {
             </button>
             <button 
               onClick={handleCleanUp} 
-              disabled={isProcessing || selectedStudents.length === 0 || loadingCourses}
+              disabled={isProcessing || selectedStudents.length === 0}
               className="px-6 py-2.5 bg-fb-blue text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2"
             >
               {isProcessing ? <RefreshCw className="animate-spin" size={14} /> : <CheckCircle size={14} />}

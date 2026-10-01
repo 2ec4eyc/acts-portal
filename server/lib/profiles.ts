@@ -63,6 +63,16 @@ export async function listProfiles(db: DbOrTx, filter: { ids?: string[]; role?: 
   });
 }
 
+export type GradeRow = Awaited<ReturnType<typeof import("./grades.js").listGrades>>[number];
+
+/** Profiles plus each student's grades (one extra query), for views that show records in lists. */
+export async function listProfilesWithGrades(db: DbOrTx, filter: Parameters<typeof listProfiles>[1] = {}) {
+  const { listGrades } = await import("./grades.js");
+  const profiles = await listProfiles(db, filter);
+  const rows = await listGrades(db, { studentIds: profiles.filter((p) => p.role === "student").map((p) => p.id) });
+  return profiles.map((p) => ({ ...p, grades: p.role === "student" ? rows.filter((g) => g.studentId === p.id) : [] }));
+}
+
 /** One full profile, or null. */
 export async function loadProfile(db: DbOrTx, userId: string) {
   const [profile] = await listProfiles(db, { ids: [userId] });

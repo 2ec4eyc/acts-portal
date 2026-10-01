@@ -58,6 +58,8 @@ export interface UserProfile {
 
 export interface Course {
   id: string;
+  /** The course's Firestore id before the move to PostgreSQL (older CSV templates use it). */
+  legacyId?: string;
   name: string;
   professor: string;
   instructorId?: string;

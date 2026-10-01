@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DbOrTx } from "./academics.js";
 import type { Db } from "./db.js";
 import { HttpError } from "./http.js";
+import { syncEnrollments } from "./academics.js";
 import {
   attendanceRecords, attendanceSessions, courseOfferings, courses, enrollments, studentRecords, users,
 } from "../db/schema.js";
@@ -71,6 +72,9 @@ export async function saveAttendance(db: Db, actorId: string, input: z.infer<typ
   await db.transaction(async (tx) => {
     const [offering] = await tx.select({ id: courseOfferings.id }).from(courseOfferings).where(eq(courseOfferings.id, input.offeringId));
     if (!offering) throw new HttpError(404, "Offering not found");
+    // The app's roster is every student matching the course's year level and school year; make sure
+    // they're enrolled (as the course/account screens would) before checking.
+    await syncEnrollments(tx, { offeringIds: [input.offeringId] });
     const ids = [...new Set(input.records.map((r) => r.studentId))];
     if (ids.length !== input.records.length) throw new HttpError(400, "records: each student may appear once");
     if (ids.length) {

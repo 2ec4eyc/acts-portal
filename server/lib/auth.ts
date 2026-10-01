@@ -56,7 +56,11 @@ export const can = (user: Pick<User, "role">, permission: Permission) => PERMISS
  * Verifies the Firebase ID token in the Authorization header and loads the caller from Postgres.
  * Roles come only from the database, never from the token or the request.
  */
-export async function requireUser(req: VercelRequest, permission?: Permission): Promise<User> {
+export async function requireUser(
+  req: VercelRequest,
+  permission?: Permission,
+  opts: { allowReplacedSession?: boolean } = {},
+): Promise<User> {
   const token = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
   if (!token) throw new HttpError(401, "Missing token");
   // Revocation checks need service-account credentials; without them we still verify signature and expiry.
@@ -66,6 +70,11 @@ export async function requireUser(req: VercelRequest, permission?: Permission): 
   const [user] = await db.select().from(users).where(eq(users.firebaseUid, decoded.uid)).limit(1);
   if (!user) throw new HttpError(403, "No account for this login");
   if (user.status === "archived") throw new HttpError(403, "Account deactivated");
+  // One active browser session per account (as before): a newer sign-in replaces older ones.
+  const sessionId = req.headers["x-session-id"];
+  if (!opts.allowReplacedSession && typeof sessionId === "string" && user.currentSessionId && user.currentSessionId !== sessionId) {
+    throw new HttpError(401, "Session replaced");
+  }
   if (permission && !can(user, permission)) throw new HttpError(403, "Forbidden");
   return user;
 }

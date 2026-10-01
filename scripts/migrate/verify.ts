@@ -1,5 +1,5 @@
 // Step 4: compare what's in Postgres with the Firestore dump. Exits 1 on any mismatch.
-// Usage: DATABASE_URL_UNPOOLED=... npx tsx scripts/migrate/verify.ts
+// Usage: DATABASE_URL_UNPOOLED=... npx tsx scripts/migrate/verify.ts [--accounts-only]
 import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import { transform } from "./transform.js";
@@ -7,7 +7,7 @@ import { transform } from "./transform.js";
 const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
 if (!connectionString) throw new Error("Set DATABASE_URL_UNPOOLED or DATABASE_URL");
 const pool = new Pool({ connectionString });
-const t = transform();
+const t = transform(undefined, { accountsOnly: process.argv.includes("--accounts-only") });
 let failures = 0;
 const check = (label: string, expected: unknown, actual: unknown) => {
   const ok = JSON.stringify(expected) === JSON.stringify(actual);
