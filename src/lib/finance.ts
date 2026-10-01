@@ -29,6 +29,8 @@ export interface Receipt {
   id: string; studentId: string; studentName: string; invoiceId: string | null; invoiceNumber: string | null;
   amountClaimed: number; paidOn: string; method: PaymentMethod; reference: string | null; contentType: string;
   status: 'pending' | 'approved' | 'rejected'; reviewNote: string | null; reviewedBy: string | null; createdAt: string;
+  /** Set when an admin deleted the file to free storage; the receipt record stays. */
+  fileDeletedAt: string | null;
 }
 export interface Statement {
   student: { id: string; name: string; studentNo: string | null };

@@ -48,3 +48,8 @@ export interface BillingSettings { reminderDaysBefore: number; overdueEveryDays:
 export const fetchBillingSettings = () => api<SettingInfo<BillingSettings>>('settings/billing');
 export const updateBillingSettings = (changes: Partial<BillingSettings>) =>
   api<SettingInfo<BillingSettings>>('settings/billing', { method: 'PATCH', body: changes });
+
+export interface StorageSettings { warnAtGb: number; limitGb: number; deleteApprovedAfterYears: number }
+export const fetchStorageSettings = () => api<SettingInfo<StorageSettings>>('settings/storage');
+export const updateStorageSettings = (changes: Partial<StorageSettings>) =>
+  api<SettingInfo<StorageSettings>>('settings/storage', { method: 'PATCH', body: changes });

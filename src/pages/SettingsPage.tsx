@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Card } from '../components/Card';
+import { StorageSettings } from '../components/StorageSettings';
 import {
   fetchAlertSettings, fetchBillingSettings, fetchFeatureSettings, updateAlertSettings, updateBillingSettings, updateFeatures,
   type AttendanceAlerts, type BillingSettings, type Features, type SettingInfo,
@@ -161,6 +162,7 @@ export const SettingsPage = () => {
       </Card>
       <AlertSettings />
       <ReminderSettings />
+      <StorageSettings />
       {info?.updatedAt && (
         <p className="text-xs text-fb-textSecondary">Last changed {formatWhen(info.updatedAt)}{info.updatedBy ? ` by ${info.updatedBy}` : ''}. Every change is recorded in the Audit Log.</p>
       )}

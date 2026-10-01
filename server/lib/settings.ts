@@ -36,11 +36,24 @@ export const Billing = z.object({
   overdueEveryDays: z.number().int().min(0).max(60).default(7),
 });
 
-const SETTINGS = { features: Features, attendanceAlerts: AttendanceAlerts, billing: Billing } as const;
+const gb = z.number().min(0.1).max(1000).multipleOf(0.1);
+
+/** Receipt file storage (R2 bucket, or Postgres without R2). */
+export const Storage = z.object({
+  /** Tell admins when receipt files reach this many GB. */
+  warnAtGb: gb.default(7),
+  /** Refuse new receipt uploads at this many GB. */
+  limitGb: gb.default(9),
+  /** Admins may delete the file of an approved receipt once it was approved this many years ago. */
+  deleteApprovedAfterYears: z.number().int().min(1).max(20).default(5),
+});
+
+const SETTINGS = { features: Features, attendanceAlerts: AttendanceAlerts, billing: Billing, storage: Storage } as const;
 
 /** Rules that involve more than one field, checked on the merged value before saving. */
 const CHECKS: { [K in keyof typeof SETTINGS]?: (value: z.infer<(typeof SETTINGS)[K]>) => string | null } = {
   attendanceAlerts: (v) => (v.warnAt < v.escalateAt ? null : "warnAt must be lower than escalateAt"),
+  storage: (v) => (v.warnAtGb < v.limitGb ? null : "warnAtGb must be lower than limitGb"),
 };
 export type SettingKey = keyof typeof SETTINGS;
 export const isSettingKey = (key: string): key is SettingKey => Object.hasOwn(SETTINGS, key);

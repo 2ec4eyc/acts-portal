@@ -26,6 +26,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Audit log, settings and feature switches | | | | ✓ |
 | Post and manage announcements | | | | ✓ |
 | Billing: invoices, payments, receipt review | own statement; upload receipts | | | ✓ |
+| Receipt storage: usage, file list, delete files | | | | ✓ |
 
 ## Endpoints
 
@@ -77,11 +78,15 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | POST | `/api/finance/invoices/:id/remind` | Notifies the student, at most once a day per invoice. |
 | POST | `/api/finance/payments` | `{ studentId, amount, paidOn, method: cash\|bank_transfer\|gcash\|maya\|other, reference?, invoiceId? }`. Applied to `invoiceId` first, then the oldest unpaid invoices. Anything left over stays as credit. |
 | PATCH | `/api/finance/payments/:id` | `{ void: { reason } }`. The invoices it paid go back to owing that amount. |
-| POST | `/api/finance/receipts/upload-url` | Students. `{ contentType, sizeBytes, sha256 }` returns `{ mode: "r2", key, url }`: PUT the file to `url` within 5 minutes. Without R2 it returns `{ mode: "db" }`. Accepted types are JPEG, PNG, WebP and PDF, up to 2 MB. Duplicate files are refused. |
+| POST | `/api/finance/receipts/upload-url` | Students. `{ contentType, sizeBytes, sha256 }` returns `{ mode: "r2", key, url }`: PUT the file to `url` within 5 minutes. Without R2 it returns `{ mode: "db" }`. Accepted types are JPEG, PNG, WebP and PDF, up to 2 MB. Duplicate files are refused. Returns 507 when receipt storage has reached the `storage.limitGb` setting. |
 | GET, POST | `/api/finance/receipts?status=&studentId=` | POST (students): `{ contentType, sizeBytes, sha256, key \| data (base64), amountClaimed, paidOn, method, reference?, invoiceId? }`. The file's type is checked, and admins are notified. GET: admins see all receipts, students their own. |
 | GET | `/api/finance/receipts/:id/file` | Returns `{ url }` (a 5-minute R2 link) or the file itself. Only the uploading student and admins can open it. |
 | POST | `/api/finance/receipts/:id/review` | Admins. `{ decision: "approve", amount? }` records the payment. `{ decision: "reject", note }` requires a reason. The student is notified either way. |
-| GET | `/api/cron/daily` | Vercel Cron, `Authorization: Bearer $CRON_SECRET`. Sends payment reminders based on the `billing` setting (`reminderDaysBefore`, `overdueEveryDays`) and cleans up old notifications. Safe to run more than once. |
+| GET | `/api/storage` | Admins. Receipt storage usage: `{ mode: "r2" \| "db", usedBytes, trackedBytes, files, deletedFiles, byStatus, measured, warnBytes, limitBytes, level: "ok" \| "warn" \| "full" }`. Used = the larger of the stored receipts' sizes and the last bucket count. 1 GB = 1,000,000,000 bytes. |
+| GET | `/api/storage/files?status=&q=&deletable=true&sort=newest\|largest&offset=` | Admins. Receipt files, 100 at a time (`nextOffset`). `status` can also be `deleted`. Each file has `cannotDelete`: null, or the reason it can't be deleted. |
+| POST | `/api/storage/files/delete` | Admins. `{ ids }` (up to 200). Deletes the file (not the receipt or payment) of rejected receipts, and of approved receipts reviewed more than `deleteApprovedAfterYears` ago. Pending ones are never deleted. Returns `{ deleted, freedBytes, skipped: [{ id, reason }], warning }`. Afterwards the file endpoint returns 410. |
+| POST | `/api/storage/recount` | Admins, R2 only. Lists the bucket, removes uploads more than a day old that were never submitted, and saves the real total. At most once a minute. |
+| GET | `/api/cron/daily` | Vercel Cron, `Authorization: Bearer $CRON_SECRET`. Sends payment reminders based on the `billing` setting (`reminderDaysBefore`, `overdueEveryDays`), cleans up old notifications, and checks receipt storage (bucket recount, then alerts). Safe to run more than once. |
 
 Money is in pesos with two decimals. Invoices and payments are never deleted, only voided with a reason, and every change appears in the audit log.
 

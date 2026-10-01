@@ -106,7 +106,9 @@ export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: Sta
                 <span className="text-fb-textSecondary">{formatDay(r.paidOn)} · {METHOD_LABELS[r.method]}{r.reference ? ` · ref ${r.reference}` : ''}{r.invoiceNumber ? ` · for ${r.invoiceNumber}` : ''}</span>
                 {r.status === 'pending' && <span className="text-xs text-amber-800">Under review</span>}
                 {r.reviewNote && <span className="text-xs text-fb-textSecondary">Note: {r.reviewNote}</span>}
-                <button type="button" onClick={() => openReceipt(r.id).catch(() => {})} className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Eye size={11} /> View</button>
+                {r.fileDeletedAt
+                  ? <span className="ml-auto text-[10px] font-black uppercase text-fb-textSecondary" title={`Deleted ${formatDay(r.fileDeletedAt)} to free storage`}>File deleted</span>
+                  : <button type="button" onClick={() => openReceipt(r.id).catch(() => {})} className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Eye size={11} /> View</button>}
               </li>
             ))}
           </ul>

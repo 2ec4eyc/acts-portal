@@ -616,6 +616,13 @@ The bucket's CORS rule allows `PUT` only from the portal's domains. **Verificati
 
 Each change is captured by the audit trigger.
 
+**Storage limits (added after phase 3).** Usage is the sum of `receipt_uploads.size_bytes` for files still stored. In R2 mode it is also the bucket total, which the daily job (or **Recount now**) lists, cleaning up day-old uploads that were never submitted. The larger of the two counts. The `storage` setting holds:
+- `warnAtGb` (default 7): admins get one `storage_warning` notification per crossing;
+- `limitGb` (default 9): uploads are refused with 507;
+- `deleteApprovedAfterYears` (default 5).
+
+Admins free space in **Settings → Storage**. They can delete the files of rejected receipts, and of approved receipts older than that setting. `file_deleted_at` and `file_deleted_by` are recorded, and the receipt and payment rows stay. Migration `0008_storage` adds the columns, the `storage_status` row, and the notification kind.
+
 *Fallback if you'd rather not add an R2 account:* store the file in Postgres, as `material_files` does today, with the same 2 MB cap. It works, but every receipt counts against the database storage quota.
 
 ### 3.6 Where an online gateway would plug in later
