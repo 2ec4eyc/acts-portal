@@ -1261,4 +1261,4 @@ npx vite build
 | **1** | Modularize `index.tsx`, Tailwind build, cleanup, `.gitignore`, env-only Firebase config | App behaves identically; `npm run lint`/`build` clean |
 | **2** | Neon + Vercel project, schema + first migration, `lib/db`/`lib/auth`, API endpoints per page, TanStack Query | Every page served from `/api` on a preview deployment backed by a migrated Neon branch |
 | **3** ✅ | Accounts-only cutover done 2026-10-01; Firestore read-only for 30 days, then decommission | `verify.ts` green; role smoke tests pass in production |
-| **4** | P1 features (admissions, TOR, grading policy, clearance), then P2/P3 | Per-feature |
+| **4** | P1 features (admissions, TOR ✅, grading policy, clearance), then P2/P3. Chat, attendance alerts, billing, audit, analytics and settings are specified in [`FEATURES_V2_BLUEPRINT.md`](FEATURES_V2_BLUEPRINT.md) | Per-feature |
