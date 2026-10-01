@@ -4,28 +4,38 @@ import { AttendanceTracker } from './AttendanceTracker';
 import { CourseManagementPage } from './CourseManagementPage';
 import { CourseMaterialsPage } from './CourseMaterialsPage';
 import { StudentCalendarView } from './StudentCalendarView';
+import { StudentGradesView } from './StudentGradesView';
+import { StudentNotesPage } from './StudentNotesPage';
 import { SubmitGrades } from './SubmitGrades';
 import { TeacherGradesView } from './TeacherGradesView';
 import type { UserProfile } from '../types';
 
-export type ClassTab = 'courses' | 'schedule' | 'materials' | 'attendance' | 'grades';
+export type ClassTab = 'courses' | 'schedule' | 'materials' | 'attendance' | 'grades' | 'notes' | 'records';
 const LABELS: Record<ClassTab, string> = {
   courses: 'Courses', schedule: 'Schedule', materials: 'Materials', attendance: 'Attendance', grades: 'Grades',
+  notes: 'Courses', records: 'Records',
 };
 
-/** The tabs a staff role can use (same access as the separate pages had). */
-export function classTabs(role: UserProfile['role'] | undefined): ClassTab[] {
+/**
+ * The tabs a role can use (same access as the separate pages had). Students get their courses' notes,
+ * their records and, when the student schedule is turned on, their schedule.
+ */
+export function classTabs(role: UserProfile['role'] | undefined, studentSchedule = true): ClassTab[] {
+  if (role === 'student') return studentSchedule ? ['notes', 'records', 'schedule'] : ['notes', 'records'];
   if (role === 'admin') return ['courses', 'schedule', 'materials', 'attendance', 'grades'];
   if (role === 'teacher' || role === 'president' || role === 'vice president') return ['schedule', 'materials', 'grades'];
   return [];
 }
 
-/** Class Management: courses, schedule, course materials, attendance and grades for staff, as tabs. */
-export const ClassManagementPage = ({ profile, tab }: { profile: UserProfile; tab?: ClassTab }) => {
-  const tabs = classTabs(profile.role);
+/**
+ * Class Management, as tabs: courses, schedule, course materials, attendance and grades for staff;
+ * courses (notes), records and schedule for students.
+ */
+export const ClassManagementPage = ({ profile, tab, studentSchedule = true }: { profile: UserProfile; tab?: ClassTab; studentSchedule?: boolean }) => {
+  const tabs = classTabs(profile.role, studentSchedule);
   const pick = (t?: ClassTab) => (t && tabs.includes(t) ? t : tabs[0]);
   const [active, setActive] = useState<ClassTab>(pick(tab));
-  useEffect(() => setActive(pick(tab)), [tab, profile.role]);
+  useEffect(() => setActive(pick(tab)), [tab, profile.role, studentSchedule]);
 
   return (
     <div className="space-y-6">
@@ -45,6 +55,8 @@ export const ClassManagementPage = ({ profile, tab }: { profile: UserProfile; ta
         {active === 'schedule' && <StudentCalendarView profile={profile} />}
         {active === 'materials' && <CourseMaterialsPage profile={profile} />}
         {active === 'attendance' && <AttendanceTracker profile={profile} />}
+        {active === 'notes' && <StudentNotesPage />}
+        {active === 'records' && <StudentGradesView profile={profile} />}
         {active === 'grades' && (profile.role === 'teacher' ? <TeacherGradesView profile={profile} /> : <SubmitGrades adminProfile={profile} />)}
       </div>
     </div>
