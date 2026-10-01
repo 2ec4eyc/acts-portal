@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, ChevronDown } from 'lucide-react';
+import { RefreshCw, ChevronDown, FileCheck2 } from 'lucide-react';
+
+import { TranscriptList } from '../components/modals/TranscriptModal';
 
 import { fetchAttendance, fetchCourses } from '../lib/data';
 import { live } from '../lib/live';
@@ -180,6 +182,14 @@ export const StudentGradesView = ({ profile }: { profile: UserProfile }) => {
           );
         })}
       </div>
+
+      <section className="bg-white rounded-[2rem] border border-fb-border shadow-sm p-5 md:p-6 space-y-3" aria-labelledby="my-transcripts">
+        <h2 id="my-transcripts" className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-fb-textPrimary">
+          <FileCheck2 size={16} className="text-fb-blue" /> Official transcripts
+        </h2>
+        <p className="text-xs text-fb-textSecondary">Transcripts issued by the registrar. Ask the school office if you need one.</p>
+        <TranscriptList studentId={profile.uid} canIssue={false} />
+      </section>
     </div>
   );
 };

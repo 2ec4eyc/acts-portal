@@ -21,6 +21,8 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Take attendance | | | ✓ | ✓ |
 | Courses (create, edit, archive) | | | | ✓ |
 | Upload files to own courses | | ✓ | | ✓ (any course) |
+| Issue and revoke official transcripts | | | | ✓ |
+| Read issued transcripts | own | ✓ | ✓ | ✓ |
 
 ## Endpoints
 
@@ -49,6 +51,13 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | GET, POST | `/api/materials?category=&offeringId=&mine=true&archived=true\|false\|all` | POST: `{ offeringId, category, fileName, contentType, data (base64), eventDate, eventTime, instructions }`, max 800 KB. Students see active files of their own courses only. |
 | GET, PATCH, DELETE | `/api/materials/:id` | PATCH `{ archived }`. Uploader or admin. |
 | GET | `/api/materials/:id/file` | Download (same visibility as the list). |
+| GET | `/api/transcripts/preview?studentId=` | The transcript as it would be issued now. Lists finished courses (a grade or Incomplete) in active offerings by term, with units, remarks, units earned and a unit-weighted general average (Incomplete excluded). Admins. |
+| GET, POST | `/api/transcripts?studentId=` | GET lists issued transcripts without their content. POST `{ studentId, purpose? }` issues one: content is frozen at issue time and gets a verification code (`XXXX-XXXX-XXXX`). Audited. |
+| GET | `/api/transcripts/:id` | One issued transcript with its frozen `content`. |
+| POST | `/api/transcripts/:id/revoke` | `{ reason }`. The transcript is kept; verification then reports it as revoked. Admins. |
+| GET | `/api/verify/:code` | **No auth.** `{ status: valid\|revoked, school, studentName, studentNo, issuedAt, issuedBy, revokedAt }`, never grades; 404 for unknown codes. Behind the QR code on the PDF (`/verify/<code>` page). |
+
+Course offerings carry `units` (0.5–99 in steps of 0.5, default 3). A student with issued transcripts can't be deleted.
 
 Values use the database's vocabulary: `yearLevel` 1–2, `semester` 1–3, roles `vice_president` etc., schedule `weekdays` 0 (Sunday) to 6, `frequency` once/daily/weekly/biweekly/monthly.
 

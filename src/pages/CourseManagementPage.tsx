@@ -59,7 +59,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   const [teachers, setTeachers] = useState([] as UserProfile[]);
   
   const initialFormState: Partial<Course> = { 
-    name: '', professor: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:30', isRecurring: false, frequency: 'Weekly', daysOfWeek: [], yearLevel: '1st Year', semester: '1st Semester', status: 'active', schoolYear: '' 
+    name: '', professor: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:30', isRecurring: false, frequency: 'Weekly', daysOfWeek: [], yearLevel: '1st Year', semester: '1st Semester', status: 'active', schoolYear: '', units: 3 
   };
   const [formData, setFormData] = useState(initialFormState);
 
@@ -415,6 +415,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                           <span className="px-4 py-1.5 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
                           <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
                           {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
+                          {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
                         </div>
                       </td>
                       <td className="px-8 py-5">
@@ -496,6 +497,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                       <span className="px-3 py-1 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
                       <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
                       {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
+                          {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
                     </div>
                   </div>
 
@@ -633,7 +635,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-fb-textSecondary ml-1 uppercase tracking-widest">Year Level</label>
                     <div className="relative group">
@@ -654,6 +656,22 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                       </select>
                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-fb-textSecondary pointer-events-none" size={16} />
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="course-units" className="text-[10px] font-black text-fb-textSecondary ml-1 uppercase tracking-widest">Units</label>
+                    <input
+                      id="course-units"
+                      name="units"
+                      type="number"
+                      inputMode="decimal"
+                      min={0.5}
+                      max={99}
+                      step={0.5}
+                      required
+                      className="w-full bg-white border-2 border-fb-gray rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:border-fb-blue transition-all shadow-sm"
+                      value={formData.units ?? ''}
+                      onChange={(e) => setFormData(p => ({ ...p, units: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-fb-textSecondary ml-1 uppercase tracking-widest">School Year</label>

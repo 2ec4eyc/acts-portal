@@ -30,7 +30,7 @@ interface ApiProfile {
 interface ApiOffering {
   id: string; legacyId: string | null; name: string; yearLevel: number; semester: number; schoolYear: string;
   instructorId: string | null; instructorFirstName: string | null; instructorLastName: string | null;
-  instructorName: string | null; deletedAt: string | null; createdAt: string;
+  instructorName: string | null; units: number; deletedAt: string | null; createdAt: string;
   schedule: null | { startsOn: string; startTime: string; endTime: string; frequency: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly'; weekdays: number[] };
 }
 interface ApiAttendance {
@@ -139,6 +139,7 @@ export function toCourse(o: ApiOffering): Course {
     yearLevel: YEAR[o.yearLevel as 1 | 2],
     semester: SEMESTER[o.semester as 1 | 2 | 3],
     schoolYear: o.schoolYear === 'unknown' ? undefined : o.schoolYear,
+    units: o.units,
     createdAt: stamp(o.createdAt),
     archivedAt: stamp(o.deletedAt),
     status: o.deletedAt ? 'archived' : 'active',
@@ -228,6 +229,7 @@ function courseFields(c: Partial<Course>) {
     yearLevel: yearNumber(c.yearLevel) ?? 1,
     semester: semesterNumber(c.semester) ?? 1,
     schoolYear: c.schoolYear,
+    ...(c.units !== undefined && { units: c.units }),
     schedule: c.date && c.startTime && c.endTime
       ? {
           startsOn: c.date,
