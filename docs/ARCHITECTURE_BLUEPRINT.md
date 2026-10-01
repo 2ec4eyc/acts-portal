@@ -939,7 +939,7 @@ Profile photos (`photoURL` data URLs) follow the same pattern, into `avatars/`.
 **Cutover runbook.** The dataset is small (hundreds of users), so a one-time cutover is simpler and safer than running both databases in parallel:
 1. Rehearse steps 3–6 against a Neon *branch* until they're clean.
 2. Announce a window (about 1 hour, outside class time).
-3. **Freeze writes:** publish Firestore rules with `allow write: if false;` everywhere (reads stay open).
+3. **Freeze writes:** publish `firestore.freeze.rules` (the current read rules, `allow write: if false;` everywhere).
 4. Run `export.ts`, then `load.ts` against production (unpooled URL), then `verify.ts` (all three with `--accounts-only` for the accounts-only start).
 5. Deploy the API-backed frontend (promote the Vercel deployment).
 6. Smoke-test as each role: student, teacher, secretary, president, admin.
