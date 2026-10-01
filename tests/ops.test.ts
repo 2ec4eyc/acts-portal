@@ -112,8 +112,11 @@ describe("reset", () => {
     const tables = (await f.pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")).rows.map((r) => r.tablename);
     for (const t of tables) {
       const n = Number((await one(`SELECT count(*) FROM "${t}"`)).count);
-      assert.equal(n, t === "users" || t === "audit_log" ? 1 : 0, t);
+      if (t !== "audit_log") assert.equal(n, t === "users" ? 1 : 0, t);
     }
+    // The log starts over with the reset itself and the new admin's account.
+    assert.deepEqual((await f.pool.query("SELECT action FROM audit_log ORDER BY id")).rows.map((r) => r.action),
+      ["users.insert", "system.reset"]);
     assert.deepEqual(await one("SELECT email, role, status, staff_category FROM users"),
       { email: "new.admin@acts.test", role: "admin", status: "active", staff_category: "admin" });
     assert.ok(Number((await one("SELECT count(*) FROM drizzle.__drizzle_migrations")).count) > 0, "migration history kept");

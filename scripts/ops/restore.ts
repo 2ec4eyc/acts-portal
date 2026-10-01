@@ -18,6 +18,8 @@ const order = await tablesInLoadOrder(pool);
 const client = await pool.connect();
 try {
   await client.query("BEGIN");
+  // Restored rows are history, not new changes: keep the audit trigger from logging them again.
+  await client.query("SELECT set_config('app.audit_off', 'on', true)");
   for (const table of order) {
     const { rows } = await client.query(`SELECT exists(SELECT 1 FROM "${table}") AS used`);
     if (rows[0].used) throw new Error(`Refusing to restore: "${table}" is not empty.`);
