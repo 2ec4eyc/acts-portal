@@ -45,6 +45,9 @@ export async function api<T = unknown>(path: string, init: { method?: string; bo
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
+/** The raw response (with sign-in headers), for files and other non-JSON replies. */
+export const fetchRaw = (path: string) => send(path, {});
+
 /** Downloads a file from the API and hands it to the browser as a save. */
 export async function downloadFile(path: string, fileName: string) {
   const blob = await (await send(path, {})).blob();

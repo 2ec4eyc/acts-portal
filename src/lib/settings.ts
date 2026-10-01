@@ -43,3 +43,8 @@ export interface AttendanceAlerts { warnAt: number; escalateAt: number; countExc
 export const fetchAlertSettings = () => api<SettingInfo<AttendanceAlerts>>('settings/attendanceAlerts');
 export const updateAlertSettings = (changes: Partial<AttendanceAlerts>) =>
   api<SettingInfo<AttendanceAlerts>>('settings/attendanceAlerts', { method: 'PATCH', body: changes });
+
+export interface BillingSettings { reminderDaysBefore: number; overdueEveryDays: number }
+export const fetchBillingSettings = () => api<SettingInfo<BillingSettings>>('settings/billing');
+export const updateBillingSettings = (changes: Partial<BillingSettings>) =>
+  api<SettingInfo<BillingSettings>>('settings/billing', { method: 'PATCH', body: changes });
