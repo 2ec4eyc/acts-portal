@@ -22,6 +22,7 @@ const TABLES: Record<string, string> = {
   payments: 'Payments',
   payment_allocations: 'Payment allocations',
   receipt_uploads: 'Receipts',
+  billing_templates: 'Billing templates',
   conversations: 'Chat conversations',
   app_settings: 'Settings',
 };
@@ -30,7 +31,7 @@ const SINGULAR: Record<string, string> = {
   course_offerings: 'a course', attendance_records: 'attendance', materials: 'a course file',
   transcripts: 'a transcript', app_settings: 'a setting', announcements: 'an announcement',
   invoices: 'an invoice', invoice_lines: 'an invoice charge', payments: 'a payment',
-  payment_allocations: 'a payment allocation', receipt_uploads: 'a receipt', conversations: 'a chat conversation',
+  payment_allocations: 'a payment allocation', receipt_uploads: 'a receipt', billing_templates: 'a billing template', conversations: 'a chat conversation',
 };
 const VERB = { INSERT: 'added', UPDATE: 'changed', DELETE: 'removed' } as const;
 const EVENTS: Record<string, string> = {

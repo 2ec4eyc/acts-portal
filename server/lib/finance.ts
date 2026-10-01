@@ -9,7 +9,7 @@ import { assertRoom, checkAlerts } from "./receipt-storage.js";
 import { getSetting } from "./settings.js";
 import { MAX_RECEIPT_BYTES, RECEIPT_TYPES, r2DownloadUrl, r2ObjectSize, r2UploadUrl, storageMode } from "./storage.js";
 import {
-  invoiceLines, invoices, paymentAllocations, paymentMethod, paymentReminders, payments, receiptFiles, receiptUploads,
+  billingTemplates, invoiceLines, invoices, paymentAllocations, paymentMethod, paymentReminders, payments, receiptFiles, receiptUploads,
   studentRecords, users,
 } from "../db/schema.js";
 
@@ -124,6 +124,59 @@ export async function createInvoices(db: DbOrTx, user: User, input: z.infer<type
   }
   await notify(db, notes);
   return created;
+}
+
+// ---------- billing templates ----------
+const chargeLines = z.array(z.strictObject({ description: z.string().trim().min(1).max(200), amount })).min(1).max(20);
+export const TemplateInput = z.strictObject({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().trim().min(1).max(200),
+  lines: chargeLines,
+});
+type TemplateRow = typeof billingTemplates.$inferSelect;
+const shapeTemplate = (t: TemplateRow) => ({
+  id: t.id, name: t.name, description: t.description, lines: t.lines,
+  total: round(t.lines.reduce((n, l) => n + l.amount, 0)), updatedAt: t.updatedAt,
+});
+const duplicateName = (e: unknown) => {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err.code === "23505" || err.cause?.code === "23505";
+};
+
+export async function listTemplates(db: DbOrTx) {
+  const rows = await db.select().from(billingTemplates).orderBy(sql`lower(${billingTemplates.name})`);
+  return rows.map(shapeTemplate);
+}
+
+async function nameTaken(db: DbOrTx, name: string, exceptId?: string) {
+  const [row] = (await db.execute(sql`
+    SELECT 1 FROM billing_templates WHERE lower(name) = lower(${name}) ${exceptId ? sql`AND id <> ${exceptId}` : sql``} LIMIT 1`)).rows;
+  if (row) throw new HttpError(409, "A template with this name already exists");
+}
+
+export async function createTemplate(db: DbOrTx, user: User, input: z.infer<typeof TemplateInput>) {
+  await nameTaken(db, input.name);
+  try {
+    const [t] = await db.insert(billingTemplates).values({ ...input, createdBy: user.id }).returning();
+    return shapeTemplate(t);
+  } catch (e) {
+    if (duplicateName(e)) throw new HttpError(409, "A template with this name already exists");
+    throw e;
+  }
+}
+
+export async function updateTemplate(db: DbOrTx, id: string, input: z.infer<typeof TemplateInput>) {
+  await nameTaken(db, input.name, id);
+  const [t] = await db.update(billingTemplates).set({ ...input, updatedAt: new Date() })
+    .where(eq(billingTemplates.id, id)).returning();
+  if (!t) throw new HttpError(404, "Template not found");
+  return shapeTemplate(t);
+}
+
+/** Invoices copy their lines, so deleting a template changes no invoice. */
+export async function deleteTemplate(db: DbOrTx, id: string) {
+  const [t] = await db.delete(billingTemplates).where(eq(billingTemplates.id, id)).returning({ id: billingTemplates.id });
+  if (!t) throw new HttpError(404, "Template not found");
 }
 
 export async function getInvoice(db: DbOrTx, id: string) {

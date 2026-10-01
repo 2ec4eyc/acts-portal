@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, Check, Eye, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { AlertCircle, Check, Eye, FileText, Pencil, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
 
 import { Card } from '../components/Card';
 import { StatementView, StatusChip } from '../components/StatementView';
 import {
-  createInvoices, fetchReceipts, fetchStatement, fetchStudentBalances, formatDay, formatPeso, METHOD_LABELS, openReceipt,
+  createInvoices, createTemplate, deleteTemplate, fetchTemplates, updateTemplate, fetchReceipts, fetchStatement, fetchStudentBalances, formatDay, formatPeso, METHOD_LABELS, openReceipt,
   recordPayment, remindInvoice, reviewReceipt, today, voidInvoice, voidPayment,
-  type Invoice, type Payment, type PaymentMethod, type Receipt, type Statement, type StudentBalance,
+  type BillingTemplate, type Invoice, type Payment, type PaymentMethod, type Receipt, type Statement, type StudentBalance,
 } from '../lib/finance';
 import { live } from '../lib/live';
+import { toast } from '../lib/toast';
 
 const input = 'w-full bg-white border-2 border-fb-gray rounded-xl px-3 py-2.5 text-sm outline-none focus:border-fb-blue';
 const label = 'text-[10px] font-black uppercase tracking-widest text-fb-textSecondary';
@@ -246,59 +247,140 @@ const ReceiptsTab = () => {
   );
 };
 
-const NewInvoiceTab = ({ onDone }: { onDone: (msg: string) => void }) => {
+type LineDraft = { description: string; amount: string };
+const blankLine = (): LineDraft => ({ description: '', amount: '' });
+const toDrafts = (lines: { description: string; amount: number }[]): LineDraft[] => lines.map((l) => ({ description: l.description, amount: String(l.amount) }));
+const toLines = (lines: LineDraft[]) => lines.map((l) => ({ description: l.description.trim(), amount: Number(l.amount) }));
+const linesTotal = (lines: LineDraft[]) => lines.reduce((n, l) => n + (Number(l.amount) || 0), 0);
+/** Why these charges can't be saved yet, or '' when they can. */
+const chargesProblem = (description: string, lines: LineDraft[]) =>
+  !description.trim() ? 'Fill in "What for" first.'
+    : lines.some((l) => !l.description.trim() || !(Number(l.amount) > 0)) ? 'Every charge needs a name and an amount above zero.' : '';
+
+/** The charge lines editor shared by "Bill students" and the template form. */
+const ChargeLines = ({ lines, setLines, totalLabel, extra }: {
+  lines: LineDraft[]; setLines: (l: LineDraft[]) => void; totalLabel: string; extra?: ReactNode;
+}) => (
+  <fieldset className="space-y-2">
+    <legend className={label}>Charges</legend>
+    {lines.map((l, i) => (
+      <div key={i} className="flex gap-2">
+        <label className="flex-1 min-w-0"><span className="sr-only">Charge {i + 1}</span>
+          <input className={input} required maxLength={200} placeholder="e.g. Tuition" value={l.description} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} /></label>
+        <label className="w-28 md:w-36 shrink-0"><span className="sr-only">Amount {i + 1}</span>
+          <input type="number" min="0.01" step="0.01" required className={`${input} tabular-nums`} placeholder="₱" value={l.amount} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} /></label>
+        {lines.length > 1 && <button type="button" aria-label={`Remove charge ${i + 1}`} onClick={() => setLines(lines.filter((_, j) => j !== i))} className="p-2.5 rounded-xl border border-fb-border hover:bg-fb-hover shrink-0"><Trash2 size={14} /></button>}
+      </div>
+    ))}
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-4">
+        {lines.length < 20 && <button type="button" onClick={() => setLines([...lines, blankLine()])} className="text-xs font-black uppercase text-fb-blue flex items-center gap-1"><Plus size={12} /> Add charge</button>}
+        {extra}
+      </div>
+      <p className="text-sm">{totalLabel}: <span className="font-black tabular-nums">{formatPeso(linesTotal(lines))}</span></p>
+    </div>
+  </fieldset>
+);
+
+/** Small in-app dialog: asks for a name, or just confirms (no input) when `field` is omitted. */
+const SmallDialog = ({ title, help, confirm, field, danger, onConfirm, onClose }: {
+  title: string; help: string; confirm: string; field?: { label: string; initial?: string; maxLength: number };
+  danger?: boolean; onConfirm: (value: string) => Promise<void>; onClose: () => void;
+}) => {
+  const [value, setValue] = useState(field?.initial ?? '');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50" role="dialog" aria-modal="true" aria-label={title}>
+      <form className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl" onSubmit={async (e) => {
+        e.preventDefault(); setBusy(true); setError('');
+        try { await onConfirm(value.trim()); onClose(); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+      }}>
+        <h3 className="text-lg font-black text-fb-textPrimary">{title}</h3>
+        <p className="text-sm text-fb-textSecondary">{help}</p>
+        {field && (
+          <label className="block space-y-1">
+            <span className={label}>{field.label}</span>
+            <input className={input} required maxLength={field.maxLength} autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+        )}
+        {error && <p role="alert" className="text-sm font-bold text-red-700">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-fb-border text-xs font-black uppercase">Cancel</button>
+          <button type="submit" disabled={busy} className={`px-4 py-2 rounded-xl text-white text-xs font-black uppercase disabled:opacity-50 ${danger ? 'bg-red-600' : 'bg-fb-blue'}`}>{confirm}</button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const NewInvoiceTab = ({ onDone, onTemplates }: { onDone: (msg: string) => void; onTemplates: () => void }) => {
   const [students, setStudents] = useState<StudentBalance[]>([]);
+  const [templates, setTemplates] = useState<BillingTemplate[] | null>(null);
+  const [templateId, setTemplateId] = useState('');
   const [batch, setBatch] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [description, setDescription] = useState('');
   const [dueOn, setDueOn] = useState('');
-  const [lines, setLines] = useState([{ description: '', amount: '' }]);
+  const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => { fetchStudentBalances().then((s) => setStudents(s.filter((x) => !x.archived))).catch(() => {}); }, []);
+  useEffect(() => live(fetchTemplates, setTemplates, () => setTemplates([])), []);
   const batches = [...new Set(students.map((s) => s.cohort).filter((c): c is string => !!c))].sort();
   const visible = students.filter((s) => !batch || s.cohort === batch);
-  const total = lines.reduce((n, l) => n + (Number(l.amount) || 0), 0);
   const allPicked = visible.length > 0 && visible.every((s) => picked.has(s.studentId));
   const toggleAll = () => setPicked(new Set(allPicked ? [] : visible.map((s) => s.studentId)));
   const toggle = (id: string) => { const n = new Set(picked); if (n.has(id)) n.delete(id); else n.add(id); setPicked(n); };
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = templates?.find((x) => x.id === id);
+    if (t) { setDescription(t.description); setLines(toDrafts(t.lines)); }
+  };
+  const startSave = () => {
+    const problem = chargesProblem(description, lines);
+    if (problem) toast.error(problem); else setSaving(true);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setError('');
     if (!picked.size) { setError('Choose at least one student.'); return; }
     setBusy(true);
     try {
-      const r = await createInvoices({ studentIds: [...picked], description: description.trim(), dueOn, lines: lines.map((l) => ({ description: l.description.trim(), amount: Number(l.amount) })) });
+      const r = await createInvoices({ studentIds: [...picked], description: description.trim(), dueOn, lines: toLines(lines) });
       onDone(`${r.created} invoice${r.created > 1 ? 's' : ''} created. Each student was notified.`);
-      setPicked(new Set()); setDescription(''); setLines([{ description: '', amount: '' }]);
+      setPicked(new Set()); setDescription(''); setLines([blankLine()]); setTemplateId('');
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   };
 
   return (
     <Card title="Bill students">
       <form onSubmit={submit} className="space-y-5">
+        <div className="rounded-2xl bg-fb-gray/40 p-4 space-y-1">
+          <label className="block space-y-1"><span className={label}>Start from template</span>
+            <select className={input} value={templateId} onChange={(e) => applyTemplate(e.target.value)} disabled={!templates?.length}>
+              <option value="">{templates?.length ? 'None, enter charges by hand' : 'No templates yet'}</option>
+              {templates?.map((t) => <option key={t.id} value={t.id}>{t.name} ({formatPeso(t.total)})</option>)}
+            </select></label>
+          {templates?.length === 0 && (
+            <p className="text-xs text-fb-textSecondary">Save charge sets you use often in <button type="button" onClick={onTemplates} className="font-bold text-fb-blue underline">Templates</button>, or with "Save as template" below.</p>
+          )}
+          {templateId && <p className="text-xs text-fb-textSecondary">Filled in from the template. You can still change anything before billing.</p>}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="space-y-1"><span className={label}>What for</span>
             <input className={input} required maxLength={200} placeholder="e.g. Tuition, 1st semester 2026-2027" value={description} onChange={(e) => setDescription(e.target.value)} /></label>
           <label className="space-y-1"><span className={label}>Due date</span>
             <input type="date" className={input} required value={dueOn} onChange={(e) => setDueOn(e.target.value)} /></label>
         </div>
-        <fieldset className="space-y-2">
-          <legend className={label}>Charges</legend>
-          {lines.map((l, i) => (
-            <div key={i} className="flex gap-2">
-              <label className="flex-1"><span className="sr-only">Charge {i + 1}</span>
-                <input className={input} required maxLength={200} placeholder="e.g. Tuition" value={l.description} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} /></label>
-              <label className="w-36"><span className="sr-only">Amount {i + 1}</span>
-                <input type="number" min="0.01" step="0.01" required className={`${input} tabular-nums`} placeholder="₱" value={l.amount} onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} /></label>
-              {lines.length > 1 && <button type="button" aria-label={`Remove charge ${i + 1}`} onClick={() => setLines(lines.filter((_, j) => j !== i))} className="p-2.5 rounded-xl border border-fb-border hover:bg-fb-hover"><Trash2 size={14} /></button>}
-            </div>
-          ))}
-          <div className="flex items-center justify-between">
-            <button type="button" onClick={() => setLines([...lines, { description: '', amount: '' }])} className="text-xs font-black uppercase text-fb-blue flex items-center gap-1"><Plus size={12} /> Add charge</button>
-            <p className="text-sm">Total per student: <span className="font-black tabular-nums">{formatPeso(total)}</span></p>
-          </div>
-        </fieldset>
+        <ChargeLines lines={lines} setLines={setLines} totalLabel="Total per student"
+          extra={<button type="button" onClick={startSave} className="text-xs font-black uppercase text-fb-blue flex items-center gap-1"><Save size={12} /> Save as template</button>} />
         <fieldset className="space-y-2">
           <legend className={label}>Students ({picked.size} selected)</legend>
           <div className="flex flex-wrap gap-3 items-center">
@@ -322,15 +404,99 @@ const NewInvoiceTab = ({ onDone }: { onDone: (msg: string) => void }) => {
         {error && <p role="alert" className="text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={16} /> {error}</p>}
         <button type="submit" disabled={busy} className={primary}>{busy && <RefreshCw size={12} className="animate-spin" />} Create {picked.size || ''} invoice{picked.size === 1 ? '' : 's'}</button>
       </form>
+      {saving && (
+        <SmallDialog title="Save as template" confirm="Save template" field={{ label: 'Template name', initial: description.trim().slice(0, 100), maxLength: 100 }}
+          help={`Saves "What for" and the ${lines.length} charge${lines.length > 1 ? 's' : ''} (${formatPeso(linesTotal(lines))}) so you can bill them again later.`}
+          onConfirm={async (name) => {
+            const t = await createTemplate({ name, description: description.trim(), lines: toLines(lines) });
+            setTemplateId(t.id);
+            toast.success(`Template "${t.name}" saved.`);
+          }}
+          onClose={() => setSaving(false)} />
+      )}
+    </Card>
+  );
+};
+
+const TemplateForm = ({ initial, onClose }: { initial: BillingTemplate | null; onClose: () => void }) => {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [lines, setLines] = useState<LineDraft[]>(initial ? toDrafts(initial.lines) : [blankLine()]);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true);
+    try {
+      const body = { name: name.trim(), description: description.trim(), lines: toLines(lines) };
+      const t = initial ? await updateTemplate(initial.id, body) : await createTemplate(body);
+      toast.success(`Template "${t.name}" ${initial ? 'updated' : 'saved'}.`);
+      onClose();
+    } catch (err) { toast.error((err as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Card title={initial ? `Edit ${initial.name}` : 'New template'}>
+      <form onSubmit={submit} className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="space-y-1"><span className={label}>Template name</span>
+            <input className={input} required maxLength={100} placeholder="e.g. Tuition – 1st Semester" value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <label className="space-y-1"><span className={label}>What for (shown on the invoice)</span>
+            <input className={input} required maxLength={200} placeholder="e.g. Tuition, 1st semester" value={description} onChange={(e) => setDescription(e.target.value)} /></label>
+        </div>
+        <ChargeLines lines={lines} setLines={setLines} totalLabel="Total" />
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" disabled={busy} className={primary}>{busy && <RefreshCw size={12} className="animate-spin" />} {initial ? 'Save changes' : 'Save template'}</button>
+          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-fb-border text-xs font-black uppercase tracking-widest">Cancel</button>
+        </div>
+      </form>
+    </Card>
+  );
+};
+
+const TemplatesTab = ({ onBill }: { onBill: () => void }) => {
+  const [rows, setRows] = useState<BillingTemplate[] | null>(null);
+  const [editing, setEditing] = useState<BillingTemplate | 'new' | null>(null);
+  const [removing, setRemoving] = useState<BillingTemplate | null>(null);
+  useEffect(() => live(fetchTemplates, setRows, (e) => { toast.error((e as Error).message); setRows([]); }), []);
+  if (editing) return <TemplateForm initial={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />;
+  return (
+    <Card noPadding>
+      <div className="p-4 border-b border-fb-border flex flex-wrap items-center gap-3">
+        <p className="flex-1 min-w-[12rem] text-sm text-fb-textSecondary">Saved charge sets. Pick one in <button type="button" onClick={onBill} className="font-bold text-fb-blue underline">Bill students</button> to fill in the charges. Changing or deleting a template never changes invoices already issued.</p>
+        <button type="button" onClick={() => setEditing('new')} className={primary}><Plus size={12} /> New template</button>
+      </div>
+      {!rows ? <p className="p-5 text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p>
+        : rows.length === 0 ? <p className="p-5 text-sm text-fb-textSecondary">No templates yet.</p> : (
+          <ul className="divide-y divide-fb-border">
+            {rows.map((t) => (
+              <li key={t.id} className="p-4 md:px-5 flex flex-wrap items-center gap-3">
+                <span className="shrink-0 p-2 rounded-xl bg-fb-blue/5 text-fb-blue"><FileText size={16} /></span>
+                <span className="flex-1 min-w-[10rem]">
+                  <span className="block font-bold text-fb-textPrimary break-words">{t.name}</span>
+                  <span className="block text-xs text-fb-textSecondary break-words">{t.description} · {t.lines.length} charge{t.lines.length > 1 ? 's' : ''}: {t.lines.map((l) => l.description).join(', ')}</span>
+                </span>
+                <span className="font-black tabular-nums">{formatPeso(t.total)}</span>
+                <span className="flex gap-2">
+                  <button type="button" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Pencil size={12} /> Edit</button>
+                  <button type="button" onClick={() => setRemoving(t)} aria-label={`Delete ${t.name}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-700 text-[10px] font-black uppercase hover:bg-red-50"><Trash2 size={12} /> Delete</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      {removing && (
+        <SmallDialog title={`Delete "${removing.name}"?`} confirm="Delete template" danger
+          help="Invoices already billed from it stay exactly as they are."
+          onConfirm={async () => { await deleteTemplate(removing.id); toast.success(`Template "${removing.name}" deleted.`); }}
+          onClose={() => setRemoving(null)} />
+      )}
     </Card>
   );
 };
 
 export const AdminBillingPage = () => {
-  const [tab, setTab] = useState<'students' | 'receipts' | 'new'>('students');
+  const [tab, setTab] = useState<'students' | 'receipts' | 'new' | 'templates'>('students');
   const [openId, setOpenId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const tabs = [['students', 'Students'], ['receipts', 'Receipts to review'], ['new', 'Bill students']] as const;
+  const tabs = [['students', 'Students'], ['receipts', 'Receipts to review'], ['new', 'Bill students'], ['templates', 'Templates']] as const;
   return (
     <div className="space-y-6 pb-10">
       <div>
@@ -346,7 +512,8 @@ export const AdminBillingPage = () => {
       {notice && <p role="status" className="text-sm font-bold text-emerald-700">{notice}</p>}
       {tab === 'students' && <StudentsTab onOpen={setOpenId} />}
       {tab === 'receipts' && <ReceiptsTab />}
-      {tab === 'new' && <NewInvoiceTab onDone={(m) => { setNotice(m); setTab('students'); }} />}
+      {tab === 'new' && <NewInvoiceTab onDone={(m) => { setNotice(m); setTab('students'); }} onTemplates={() => setTab('templates')} />}
+      {tab === 'templates' && <TemplatesTab onBill={() => setTab('new')} />}
       {openId && <StudentModal studentId={openId} onClose={() => setOpenId(null)} />}
     </div>
   );

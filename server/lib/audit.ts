@@ -115,6 +115,7 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
       case "invoice_lines": return [str(row?.description), peso(row?.amount)].filter(Boolean).join(" · ");
       case "payments": return [student(row), peso(row?.amount)].filter(Boolean).join(" · ");
       case "payment_allocations": return `Payment applied · ${peso(row?.amount) ?? ""}`.trim();
+      case "billing_templates": return str(row?.name) ?? "Billing template";
       case "receipt_uploads": return [student(row), peso(row?.amount_claimed)].filter(Boolean).join(" · ") || "Receipt";
       default: return r.entityId;
     }

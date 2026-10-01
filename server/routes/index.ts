@@ -26,6 +26,8 @@ import financeReceipts from "./finance/receipts/index.js";
 import financeReceiptUploadUrl from "./finance/receipts/upload-url.js";
 import financeStatement from "./finance/students/[id]/statement.js";
 import financeStudents from "./finance/students/index.js";
+import financeTemplate from "./finance/templates/[id].js";
+import financeTemplates from "./finance/templates/index.js";
 import meFinance from "./me/finance.js";
 import health from "./health.js";
 import material from "./materials/[id].js";
@@ -111,6 +113,8 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["finance/invoices/:id/remind", financeInvoiceRemind],
   ["finance/payments", financePayments],
   ["finance/payments/:id", financePayment],
+  ["finance/templates", financeTemplates],
+  ["finance/templates/:id", financeTemplate],
   ["finance/receipts", financeReceipts],
   ["finance/receipts/upload-url", financeReceiptUploadUrl],
   ["finance/receipts/:id/file", financeReceiptFile],

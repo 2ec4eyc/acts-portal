@@ -15,7 +15,8 @@ before(async () => {
   f = await setup();
   for (const name of ["finance/invoices/index", "finance/invoices/[id]", "finance/invoices/[id]/remind", "finance/payments/index",
     "finance/payments/[id]", "finance/students/index", "finance/students/[id]/statement", "me/finance", "finance/receipts/index",
-    "finance/receipts/upload-url", "finance/receipts/[id]/file", "finance/receipts/[id]/review", "cron/daily", "settings/[key]", "notifications/index", "audit/index"]) {
+    "finance/receipts/upload-url", "finance/receipts/[id]/file", "finance/receipts/[id]/review", "cron/daily", "settings/[key]", "notifications/index", "audit/index",
+    "finance/templates/index", "finance/templates/[id]"]) {
     h[name] = await route(name);
   }
 });
@@ -239,5 +240,71 @@ describe("reminders", () => {
     assert.ok((await subjects("invoices")).some((s: string) => /^INV-\d{4}-\d{4} · Sam Student$/.test(s)));
     assert.ok((await subjects("payments")).some((s: string) => /^Sam Student · ₱2,000\.00$/.test(s)));
     assert.ok((await subjects("receipt_uploads")).some((s: string) => /^Sam Student · ₱1,000\.00$/.test(s)));
+  });
+});
+
+describe("billing templates", () => {
+  const tpl = (body: Record<string, unknown>, token = f.tokens.admin) => call(h["finance/templates/index"], { method: "POST", token, body });
+  const edit = (id: string, body: Record<string, unknown>) => call(h["finance/templates/[id]"], { method: "PATCH", token: f.tokens.admin, query: { id }, body });
+  const list = async () => (await call(h["finance/templates/index"], { token: f.tokens.admin })).body;
+  const sem1 = { name: "Tuition – 1st Semester", description: "Tuition, 1st semester", lines: [
+    { description: "Tuition", amount: 5000 }, { description: "Miscellaneous", amount: 1200.25 }, { description: "Library", amount: 300 }] };
+  let id = "";
+
+  test("admins create, list (by name), edit and delete templates", async () => {
+    const r = await tpl(sem1);
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.total, 6500.25);
+    id = r.body.id;
+    assert.equal((await tpl({ ...sem1, name: "Enrollment fee", lines: [{ description: "Enrollment", amount: 500 }] })).status, 201);
+    assert.deepEqual((await list()).map((t: { name: string }) => t.name), ["Enrollment fee", "Tuition – 1st Semester"]);
+    const e = await edit(id, { ...sem1, lines: [{ description: "Tuition", amount: 5500 }] });
+    assert.equal(e.status, 200, JSON.stringify(e.body));
+    assert.deepEqual([e.body.total, e.body.lines.length], [5500, 1]);
+  });
+
+  test("only admins can use templates", async () => {
+    for (const role of ["president", "vice president", "teacher", "student"] as const) {
+      const token = (f.tokens as Record<string, string>)[role];
+      if (!token) continue;
+      assert.equal((await call(h["finance/templates/index"], { token })).status, 403, role);
+      assert.equal((await tpl({ ...sem1, name: `x ${role}` }, token)).status, 403, role);
+    }
+  });
+
+  test("templates are validated, and names are unique in any case", async () => {
+    const line = { description: "A", amount: 1 };
+    for (const [why, body] of [
+      ["no lines", { ...sem1, name: "a", lines: [] }],
+      ["too many lines", { ...sem1, name: "b", lines: Array.from({ length: 21 }, () => line) }],
+      ["zero", { ...sem1, name: "c", lines: [{ description: "A", amount: 0 }] }],
+      ["negative", { ...sem1, name: "d", lines: [{ description: "A", amount: -5 }] }],
+      ["3 decimals", { ...sem1, name: "e", lines: [{ description: "A", amount: 1.005 }] }],
+      ["empty name", { ...sem1, name: "  " }],
+    ] as const) assert.equal((await tpl(body as Record<string, unknown>)).status, 400, why);
+    assert.equal((await tpl({ ...sem1, name: "tuition – 1st semester" })).status, 409);
+    const other = (await list()).find((t: { name: string }) => t.name === "Enrollment fee");
+    assert.equal((await edit(other.id, { ...sem1, name: "TUITION – 1st Semester" })).status, 409);
+    assert.equal((await edit("00000000-0000-4000-8000-000000000000", { ...sem1, name: "zzz" })).status, 404);
+  });
+
+  test("invoices billed from a template keep their lines when it changes or is deleted", async () => {
+    const t = (await list()).find((x: { id: string }) => x.id === id);
+    const r = await call(h["finance/invoices/index"], { method: "POST", token: f.tokens.admin,
+      body: { studentIds: [f.ids.student2], description: t.description, dueOn: days(30), lines: t.lines } });
+    assert.equal(r.status, 201);
+    const lines = async () => (await f.pool.query("SELECT description, amount::float AS amount FROM invoice_lines WHERE invoice_id = $1 ORDER BY id", [r.body.ids[0]])).rows;
+    const before = await lines();
+    assert.deepEqual(before, [{ description: "Tuition", amount: 5500 }]);
+    await edit(id, { ...sem1, lines: [{ description: "Tuition", amount: 9999 }] });
+    assert.equal((await call(h["finance/templates/[id]"], { method: "DELETE", token: f.tokens.admin, query: { id } })).status, 204);
+    assert.deepEqual(await lines(), before);
+    assert.equal((await call(h["finance/templates/[id]"], { method: "DELETE", token: f.tokens.admin, query: { id } })).status, 404);
+  });
+
+  test("template changes are in the audit log by name", async () => {
+    const entries = (await call(h["audit/index"], { token: f.tokens.admin, query: { table: "billing_templates" } })).body.entries as { subject: string; op: string }[];
+    const mine = entries.filter((e) => e.subject === "Tuition – 1st Semester").map((e) => e.op).sort();
+    assert.deepEqual([...new Set(mine)], ["DELETE", "INSERT", "UPDATE"]);
   });
 });
