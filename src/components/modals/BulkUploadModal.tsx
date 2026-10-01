@@ -16,6 +16,7 @@ import { fetchCourses, setGradesBulk } from '../../lib/data';
 import { live } from '../../lib/live';
 import { formatName } from '../../lib/format';
 import type { Course, UserProfile } from '../../types';
+import { toast } from '../../lib/toast';
 
 export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studentData: UserProfile[], adminProfile: UserProfile, onClose: () => void }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -125,7 +126,7 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
       const text = event.target?.result as string;
       const lines = text.split("\n").filter(line => line.trim() !== "");
       if (lines.length <= 1) {
-        alert("CSV file is empty or missing data.");
+        toast.error("CSV file is empty or missing data.");
         return;
       }
 
@@ -187,7 +188,7 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
       }
 
       if (Object.keys(updates).length === 0) {
-        alert("No valid grade updates found in the CSV. Make sure you entered grades or set Incomplete to TRUE.");
+        toast.error("No valid grade updates found in the CSV. Make sure you entered grades or set Incomplete to TRUE.");
         return;
       }
 
@@ -195,10 +196,10 @@ export const BulkUploadModal = ({ studentData, adminProfile, onClose }: { studen
       try {
         // All rows are saved together, or none are.
         await setGradesBulk(Object.values(updates));
-        alert("Bulk grades updated successfully.");
+        toast.success("Bulk grades updated successfully.");
         onClose();
       } catch (err) {
-        alert("Failed to update bulk grades.");
+        toast.error("Failed to update bulk grades.");
       } finally {
         setIsProcessing(false);
       }

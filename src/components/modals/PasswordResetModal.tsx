@@ -10,6 +10,7 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 
 import { auth } from '../../lib/firebase';
 import type { UserProfile } from '../../types';
+import { toast } from '../../lib/toast';
 
 export const PasswordResetModal = ({ user, onClose }: { user: UserProfile, onClose: () => void }) => {
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export const PasswordResetModal = ({ user, onClose }: { user: UserProfile, onClo
       await sendPasswordResetEmail(auth, user.email);
       setSent(true);
     } catch (err: any) {
-      alert("Failed to send reset link: " + err.message);
+      toast.error("Failed to send reset link: " + err.message);
       setLoading(false);
     }
   };

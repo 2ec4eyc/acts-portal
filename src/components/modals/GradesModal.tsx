@@ -23,6 +23,7 @@ import { live } from '../../lib/live';
 import { formatName } from '../../lib/format';
 import { calculateGPA } from '../../lib/gpa';
 import type { Course, EditHistoryEntry, UserProfile } from '../../types';
+import { toast } from '../../lib/toast';
 
 export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { student: UserProfile, adminProfile: UserProfile, onClose: () => void }) => {
   const [student, setStudent] = useState<UserProfile>(propStudent);
@@ -86,7 +87,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
       await setGrade(student.uid, courseId, editFormData.isIncomplete ? '' : (editFormData.gradeValue === '' ? '' : Number(editFormData.gradeValue)), editFormData.isIncomplete);
       setEditingGradeId(null);
     } catch (err) {
-      alert("Failed to update records.");
+      toast.error("Failed to update records.");
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
     try {
       await resetGrade(student.uid, courseId);
     } catch (err) {
-      alert("Failed to reset grade.");
+      toast.error("Failed to reset grade.");
     } finally {
       setLoading(false);
     }
@@ -136,7 +137,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
       pdf.save(`${formatName(student)}_records.pdf`);
     } catch (err) {
       console.error("PDF generation failed", err);
-      alert("Failed to generate PDF.");
+      toast.error("Failed to generate PDF.");
     }
   };
 

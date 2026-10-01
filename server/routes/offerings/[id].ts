@@ -10,7 +10,9 @@ import { listOfferings, OfferingInput, setOfferingDeleted, updateOffering } from
 export default methods({
   GET: async (req, res) => {
     const user = await requireUser(req);
-    const [offering] = await listOfferings(db, { ids: [uuidParam(req)], includeDeleted: can(user, "offerings:write") });
+    const [offering] = await listOfferings(db, {
+      ids: [uuidParam(req)], includeDeleted: can(user, "offerings:write"), forStudent: user.role === "student" ? user.id : undefined,
+    });
     if (!offering) throw new HttpError(404, "Offering not found");
     res.status(200).json(offering);
   },

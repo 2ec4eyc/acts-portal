@@ -15,6 +15,7 @@ import { deleteFile, downloadMaterial, fetchCourses, fetchFiles, setFileArchived
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -427,7 +428,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
                   <div className="flex items-center gap-2 self-end md:self-auto">
                     <a 
                       href="#"
-                      onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => alert("Download failed: " + err.message)); }}
+                      onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => toast.error("Download failed: " + err.message)); }}
                       className="p-2.5 bg-white text-fb-blue hover:bg-fb-blue hover:text-white rounded-xl border border-fb-border transition-all shadow-sm flex items-center justify-center"
                       title="Download"
                     >

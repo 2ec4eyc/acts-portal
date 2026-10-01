@@ -13,6 +13,7 @@ import {
 import { downloadMaterial, fetchFiles } from '../../lib/data';
 import { live } from '../../lib/live';
 import type { Course } from '../../types';
+import { toast } from '../../lib/toast';
 
 export const CalendarDayModal = ({ 
   data, 
@@ -126,7 +127,7 @@ export const CalendarDayModal = ({
                           <span className="text-[11px] font-bold text-fb-textPrimary truncate max-w-[160px] md:max-w-[200px]" title={file.fileName}>{file.fileName}</span>
                           <a 
                             href="#"
-                            onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => alert("Download failed: " + err.message)); }}
+                            onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => toast.error("Download failed: " + err.message)); }}
                             className="flex items-center gap-1 py-2 px-3 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
                           >
                             <Download size={10} />

@@ -17,6 +17,7 @@ import { deleteFile, downloadMaterial, fetchFiles, setFileArchived } from '../li
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) => {
   const isAdminOrExec = profile?.role === 'admin' || profile?.role === 'president' || profile?.role === 'vice president';
@@ -96,7 +97,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
           await setFileArchived(fileId, true);
         } catch (error) {
           console.error("Error archiving file:", error);
-          alert("Failed to archive the file: " + (error as any).message);
+          toast.error("Failed to archive the file: " + (error as any).message);
         } finally {
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
         }
@@ -116,7 +117,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
           await setFileArchived(fileId, false);
         } catch (error) {
           console.error("Error restoring file:", error);
-          alert("Failed to restore the file: " + (error as any).message);
+          toast.error("Failed to restore the file: " + (error as any).message);
         } finally {
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
         }
@@ -136,7 +137,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
           await deleteFile(fileId);
         } catch (error) {
           console.error("Error permanently deleting file:", error);
-          alert("Failed to permanently delete the file: " + (error as any).message);
+          toast.error("Failed to permanently delete the file: " + (error as any).message);
         } finally {
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
         }
@@ -281,7 +282,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
                   <div className="flex items-center gap-2">
                     <a
 href="#"
-                      onClick={(e) => { e.preventDefault(); downloadMaterial(item).catch((err) => alert("Download failed: " + err.message)); }}
+                      onClick={(e) => { e.preventDefault(); downloadMaterial(item).catch((err) => toast.error("Download failed: " + err.message)); }}
                       className="flex items-center gap-1.5 py-2 px-3.5 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 cursor-pointer"
                     >
                       <Download size={11} />

@@ -22,18 +22,22 @@ import {
   Database,
   BookOpen,
   Copy,
+  AlertTriangle,
+  Users as UsersIcon,
 } from 'lucide-react';
 
 import { Card } from '../components/Card';
 import { CourseCalendar } from '../components/CourseCalendar';
 import { FormField } from '../components/FormField';
 import { CalendarDayModal } from '../components/modals/CalendarDayModal';
+import { WrongSchoolModal } from '../components/modals/WrongSchoolModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
 import { ApiError } from '../lib/api';
 import { archiveCourses, fetchCourses, fetchUsers, restoreCourses, saveCourse } from '../lib/data';
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const CourseManagementPage = ({ profile }: { profile: UserProfile | null }) => {
   const [courses, setCourses] = useState([] as Course[]);
@@ -57,6 +61,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
   
   const [dayDetailData, setDayDetailData] = useState(null as { date: string, courses: Course[] } | null);
   const [teachers, setTeachers] = useState([] as UserProfile[]);
+  const [unsetOnly, setUnsetOnly] = useState(false);
+  const [checking, setChecking] = useState<Course | null>(null);
   
   const initialFormState: Partial<Course> = { 
     name: '', professor: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '10:30', isRecurring: false, frequency: 'Weekly', daysOfWeek: [], yearLevel: '1st Year', semester: '1st Semester', status: 'active', schoolYear: '', units: 3 
@@ -99,9 +105,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     try {
       await restoreCourses(selectedToRestore);
       setSelectedToRestore([]);
-      alert("Selected courses restored to Academic Registry.");
+      toast.success("Selected courses restored to Academic Registry.");
     } catch (err: any) {
-      alert("Batch restore failed: " + err.message);
+      toast.error("Batch restore failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -113,9 +119,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     try {
       await archiveCourses(selectedToArchive);
       setSelectedToArchive([]);
-      alert("Selected courses moved to Archive.");
+      toast.success("Selected courses moved to Archive.");
     } catch (err: any) {
-      alert("Batch archive failed: " + err.message);
+      toast.error("Batch archive failed: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -156,6 +162,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.schoolType) { toast.error('Choose Day School or Night School for this course.'); return; }
     setIsProcessing(true);
     try {
       const dataToSave = { ...formData, status: formData.status || 'active' };
@@ -163,8 +170,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
       await saveCourse(dataToSave, editingId || undefined);
       
       setIsAdding(false); setEditingId(null); setFormData(initialFormState);
-      alert("Records successfully published and synced to students.");
-    } catch (err: any) { alert(err.message); }
+      toast.success("Records successfully published and synced to students.");
+    } catch (err: any) { toast.error(err.message); }
     finally { setIsProcessing(false); }
   };
 
@@ -193,7 +200,8 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
     const matchesSemester = semesterFilter === 'All' || c.semester === semesterFilter;
     const matchesSchoolYear = schoolYearFilter === 'All' || c.schoolYear === schoolYearFilter;
     const isNotArchived = isViewTrash || c.status !== 'archived'; 
-    return matchesSearch && matchesYear && matchesSemester && matchesSchoolYear && isNotArchived;
+    const matchesUnset = !unsetOnly || isViewTrash || !c.schoolType;
+    return matchesSearch && matchesYear && matchesSemester && matchesSchoolYear && isNotArchived && matchesUnset;
   });
 
   const sorted = useMemo(() => {
@@ -214,7 +222,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, yearLevelFilter, semesterFilter, schoolYearFilter, isViewTrash]);
+  }, [searchTerm, yearLevelFilter, semesterFilter, schoolYearFilter, isViewTrash, unsetOnly]);
+
+  const unsetCount = courses.filter((c) => c.status !== 'archived' && !c.schoolType).length;
 
   const uniqueSchoolYears = useMemo(() => {
     const years = new Set<string>();
@@ -227,6 +237,19 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
 
   return (
     <div className="space-y-8 pb-10">
+      {profileRole === 'admin' && (unsetCount > 0 || unsetOnly) && !isViewTrash && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle size={18} className="shrink-0 text-amber-600" aria-hidden="true" />
+          <span className="flex-1 min-w-[200px]">
+            {unsetCount > 0
+              ? <><b>{unsetCount} course{unsetCount === 1 ? ' has' : 's have'} no Day/Night school.</b> They won't enroll new students until you set it (Edit → School).</>
+              : 'Every course has a Day/Night school.'}
+          </span>
+          <button type="button" onClick={() => setUnsetOnly(!unsetOnly)} className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[10px] font-black uppercase tracking-wider hover:bg-amber-100">
+            {unsetOnly ? 'Show all courses' : 'Show them'}
+          </button>
+        </div>
+      )}
       <Card noPadding>
         <div className="p-3 md:p-4 lg:p-5 flex flex-col md:flex-row gap-3 md:gap-4 border-b border-fb-border items-start">
           {/* Search Box - Proportionally adjusted */}
@@ -413,6 +436,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                       <td className="px-8 py-5 text-center">
                         <div className="flex flex-col gap-1 items-center">
                           <span className="px-4 py-1.5 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
+                          {!isViewTrash && (c.schoolType
+                            ? <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
+                            : <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
                           <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
                           {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
                           {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
@@ -444,6 +470,15 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                 </button>
                                 <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-emerald-500">Duplicate</span>
                               </div>
+                              {profileRole === 'admin' && c.schoolType && (
+                                <div className="flex flex-col items-center gap-1 group">
+                                  <button onClick={() => setChecking(c)} aria-label={`Check students' school in ${c.name}`}
+                                    className="p-2 md:p-2.5 text-fb-textSecondary hover:bg-amber-500 hover:text-white rounded-xl transition-all shadow-sm border border-fb-border">
+                                    <UsersIcon size={14} />
+                                  </button>
+                                  <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-amber-600">Students</span>
+                                </div>
+                              )}
                               <div className="flex flex-col items-center gap-1 group">
                                 <button 
                                   onClick={() => { setEditingId(c.id); setFormData(c); setIsAdding(true); }}
@@ -495,6 +530,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className="px-3 py-1 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
+                      {!isViewTrash && (c.schoolType
+                            ? <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
+                            : <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
                       <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
                       {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
                           {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
@@ -543,6 +581,11 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                         >
                           <Copy size={10} /> Duplicate
                         </button>
+                        {profileRole === 'admin' && c.schoolType && (
+                          <button onClick={() => setChecking(c)} className="flex items-center gap-1.5 px-2.5 py-1 bg-fb-gray rounded-lg text-[9px] md:text-[10px] font-bold text-fb-textSecondary uppercase">
+                            <UsersIcon size={10} /> Students
+                          </button>
+                        )}
                         <button onClick={() => { setEditingId(c.id!); setFormData(c); setIsAdding(true); }} className="flex items-center gap-1.5 px-2.5 py-1 bg-fb-gray rounded-lg text-[9px] md:text-[10px] font-bold text-fb-textSecondary uppercase">
                           <Edit2 size={10} /> Edit
                         </button>
@@ -635,6 +678,19 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                   </div>
                 </div>
+                <fieldset className="space-y-1.5">
+                  <legend className="text-[10px] font-black text-fb-textSecondary ml-1 uppercase tracking-widest">School <span className="text-red-600">*</span></legend>
+                  <div className="flex bg-fb-gray p-1 rounded-2xl border-2 border-fb-border w-full md:w-auto md:inline-flex" role="radiogroup" aria-label="School">
+                    {(['Day School', 'Night School'] as const).map((school) => (
+                      <button key={school} type="button" role="radio" aria-checked={formData.schoolType === school}
+                        onClick={() => setFormData(p => ({ ...p, schoolType: school }))}
+                        className={`flex-1 md:flex-none px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${formData.schoolType === school ? 'bg-fb-blue text-white shadow-lg' : 'text-fb-textSecondary hover:text-fb-textPrimary'}`}>
+                        {school}
+                      </button>
+                    ))}
+                  </div>
+                  {!formData.schoolType && <p className="text-[11px] font-semibold text-amber-700 ml-1">Required. Only students of this school are enrolled and see it on their schedule.</p>}
+                </fieldset>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-fb-textSecondary ml-1 uppercase tracking-widest">Year Level</label>
@@ -760,6 +816,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
       )}
 
       {/* Calendar Popup Modal */}
+      {checking && <WrongSchoolModal course={checking} onClose={() => setChecking(null)} />}
       {dayDetailData && (
         <CalendarDayModal 
           data={dayDetailData} 

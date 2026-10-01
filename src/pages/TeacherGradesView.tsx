@@ -13,6 +13,7 @@ import { fetchAttendance, fetchCourses, fetchUsers, setGrade } from '../lib/data
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
+import { toast } from '../lib/toast';
 
 export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -75,7 +76,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
 
   const handleUpdateGrade = async (studentId: string, courseId: string, courseName: string, yearLevel: string, semester: string) => {
     if (editFormData.gradeValue === '' && !editFormData.isIncomplete) {
-      alert("Please enter a valid grade or mark as incomplete.");
+      toast.error("Please enter a valid grade or mark as incomplete.");
       return;
     }
     setLoading(true);
@@ -88,7 +89,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
       setEditingId(null);
     } catch (err: any) {
       console.error("Error updating grade:", err);
-      alert("Failed to update grade. " + err.message);
+      toast.error("Failed to update grade. " + err.message);
     } finally {
       setLoading(false);
     }
