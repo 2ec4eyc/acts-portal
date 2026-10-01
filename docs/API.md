@@ -43,9 +43,11 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | POST | `/api/users/archive`, `/api/users/restore` | `{ ids }` |
 | POST | `/api/users/enroll` | `{ studentIds, yearLevel, cohort, schoolYear }`, then enrolls in matching offerings. |
 | POST | `/api/users/cleanup` | `{ studentIds }`: removes enrollments/grades in archived offerings (audited). |
-| GET, POST | `/api/offerings[?includeDeleted=true]` | Course offerings with schedule. POST enrolls matching students. |
-| GET, PATCH, DELETE | `/api/offerings/:id` | DELETE archives (soft). |
+| GET, POST | `/api/offerings[?includeDeleted=true]` | Course offerings with schedule and `schoolType` (`day`, `night`, or `null` for older courses not yet set). **Students get only the offerings they're enrolled in.** POST requires `schoolType` and enrolls the matching students: same school, year level and school year. A course with no `schoolType` enrolls nobody. |
+| GET, PATCH, DELETE | `/api/offerings/:id` | A student gets 404 for a course they aren't enrolled in. PATCH can set `schoolType`, which enrolls that school's students; students already enrolled stay. DELETE archives (soft). |
 | POST | `/api/offerings/:id/restore` | |
+| GET | `/api/offerings/:id/mismatched` | Admins. Students enrolled in the course who aren't from its school, with `cannotRemove` ("Has a grade", "Has attendance" or null). |
+| POST | `/api/offerings/:id/unenroll` | Admins. `{ studentIds }` removes them from the course, except students with a grade or attendance there. Returns `{ removed, skipped: [{ studentId, reason }] }`. Each removal is logged as `enrollment.removed`. |
 | GET | `/api/grades?studentId=\|offeringId=` | One row per enrollment: `value`, `isIncomplete`, `status` (passed ≥ 75 / failed / incomplete / pending). |
 | PUT | `/api/grades` | `{ offeringId, studentId, value (0-100 or null), isIncomplete }`. Recorded in history. |
 | DELETE | `/api/grades?offeringId=&studentId=` | Reset to pending; the student stays enrolled. |

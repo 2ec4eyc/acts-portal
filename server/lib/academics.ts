@@ -49,6 +49,7 @@ export async function syncEnrollments(db: DbOrTx, scope: { studentIds?: string[]
     JOIN student_year_levels syl ON syl.student_id = sr.user_id AND syl.year_level = sr.current_year_level
     JOIN terms t ON t.school_year_id = syl.school_year_id
     JOIN course_offerings o ON o.term_id = t.id AND o.year_level = sr.current_year_level AND o.deleted_at IS NULL
+      AND o.school_type = sr.school_type
     WHERE TRUE ${studentFilter} ${offeringFilter}
     ON CONFLICT (offering_id, student_id) DO NOTHING`);
   return result.rowCount ?? 0;

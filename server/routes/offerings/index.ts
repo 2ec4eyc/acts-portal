@@ -4,14 +4,15 @@ import { HttpError, methods, queryParam } from "../../lib/http.js";
 import { syncEnrollments } from "../../lib/academics.js";
 import { createOffering, listOfferings, OfferingInput } from "../../lib/offerings.js";
 
-// GET  /api/offerings[?includeDeleted=true]: all course offerings (archived ones for admins only).
+// GET  /api/offerings[?includeDeleted=true]: course offerings (archived ones for admins only). Students
+//      get only the offerings they're enrolled in (their own Day/Night school and year level).
 // POST /api/offerings: create one, then enroll matching students.
 export default methods({
   GET: async (req, res) => {
     const user = await requireUser(req);
     const includeDeleted = queryParam(req, "includeDeleted") === "true";
     if (includeDeleted && !can(user, "offerings:write")) throw new HttpError(403, "Forbidden");
-    res.status(200).json(await listOfferings(db, { includeDeleted }));
+    res.status(200).json(await listOfferings(db, { includeDeleted, forStudent: user.role === "student" ? user.id : undefined }));
   },
   POST: async (req, res) => {
     await requireUser(req, "offerings:write");

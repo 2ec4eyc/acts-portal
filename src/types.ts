@@ -70,6 +70,8 @@ export interface Course {
   daysOfWeek?: string[];
   frequency: 'Daily' | 'Weekly' | 'Bi-weekly' | 'Monthly';
   yearLevel: '1st Year' | '2nd Year';
+  /** Only students of this school are enrolled. Unset on courses from before Day/Night existed. */
+  schoolType?: 'Day School' | 'Night School';
   semester: '1st Semester' | '2nd Semester' | '3rd Semester';
   schoolYear?: string;
   /** Credit units shown on the transcript (default 3). */

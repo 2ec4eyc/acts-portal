@@ -59,6 +59,9 @@ describe("GET /api/users/:id", () => {
 
 describe("POST /api/users", () => {
   test("an admin creates a student who can sign in and is enrolled automatically", async () => {
+    // Seeded courses have no Day/Night yet: make two Day and one Night.
+    await f.pool.query(`UPDATE course_offerings SET school_type = CASE WHEN id = $1 THEN 'night'::school_type ELSE 'day'::school_type END
+      WHERE deleted_at IS NULL`, [f.offerings.c2]);
     const r = await call(users, { method: "POST", token: f.tokens.admin, body: newStudent() });
     assert.equal(r.status, 201, JSON.stringify(r.body));
     assert.equal(r.body.email, "new.student@acts.test");
@@ -68,7 +71,7 @@ describe("POST /api/users", () => {
       yearLevels: [{ yearLevel: 1, schoolYear: "2026-2027" }],
     });
     const { rows } = await f.pool.query("SELECT count(*)::int AS n FROM enrollments WHERE student_id = $1", [r.body.id]);
-    assert.equal(rows[0].n, 3, "enrolled in all three 1st-year 2026-2027 offerings");
+    assert.equal(rows[0].n, 2, "enrolled in the two Day 1st-year 2026-2027 offerings, not the Night one");
     assert.ok(await signIn("new.student@acts.test", "secret123"));
   });
   test("duplicate emails and student numbers are rejected", async () => {
@@ -149,10 +152,10 @@ describe("PATCH /api/users/:id", () => {
 describe("enroll, archive, restore, delete", () => {
   test("bulk enrollment sets year level, batch and school year, then enrolls", async () => {
     // A 2nd-year offering in 2027-2028 for the students to be moved into.
-    await call(offerings, { method: "POST", token: f.tokens.admin, body: { name: "Pastoral Ministry", instructorId: null, yearLevel: 2, semester: 1, schoolYear: "2027-2028", schedule: null } });
+    await call(offerings, { method: "POST", token: f.tokens.admin, body: { name: "Pastoral Ministry", instructorId: null, yearLevel: 2, schoolType: "night", semester: 1, schoolYear: "2027-2028", schedule: null } });
     const r = await call(enroll, { method: "POST", token: f.tokens.president, body: { studentIds: [f.ids.student, f.ids.student2], yearLevel: 2, cohort: "Batch 2026-A", schoolYear: "2027-2028" } });
     assert.equal(r.status, 200);
-    assert.equal(r.body.newEnrollments, 2);
+    assert.equal(r.body.newEnrollments, 1, "only Sam is a Night student; Rita has no school set");
     const me = await call(user, { token: f.tokens.admin, query: { id: f.ids.student } });
     assert.equal(me.body.student.currentYearLevel, 2);
     assert.deepEqual(me.body.student.yearLevels, [{ yearLevel: 1, schoolYear: "2026-2027" }, { yearLevel: 2, schoolYear: "2027-2028" }]);

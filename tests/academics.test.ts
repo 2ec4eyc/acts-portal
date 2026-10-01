@@ -74,7 +74,7 @@ describe("PUT/DELETE /api/grades", () => {
     assert.equal(listed.body[0].status, "pending");
   });
   test("grading a student who isn't enrolled enrolls them (as the app did)", async () => {
-    const created = await call(offerings, { method: "POST", token: f.tokens.admin, body: { name: "Elective", instructorId: null, yearLevel: 2, semester: 1, schoolYear: "2030-2031", schedule: null } });
+    const created = await call(offerings, { method: "POST", token: f.tokens.admin, body: { name: "Elective", instructorId: null, yearLevel: 2, schoolType: "night", semester: 1, schoolYear: "2030-2031", schedule: null } });
     f.offerings.elective = created.body.id;
     assert.equal(created.body.newEnrollments, 0);
     assert.equal((await call(grades, { method: "PUT", token: f.tokens.admin, body: grade("elective", "student", 88) })).status, 200);

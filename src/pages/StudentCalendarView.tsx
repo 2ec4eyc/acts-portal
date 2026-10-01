@@ -22,7 +22,8 @@ export const StudentCalendarView = ({ profile }: { profile: UserProfile }) => {
       const enrolledIds = profile.grades?.map(g => g.id) || [];
       
       all.forEach(data => {
-        // Only show active courses for the student's year level AND matching school year, or based on student enrollment
+        // Students: the server only sends the courses they're enrolled in (their own Day/Night school and
+        // year level); the enrollment check here is a second guard. Teachers: the courses they teach.
         let shouldInclude = false;
         if (profile.role === 'teacher') {
           shouldInclude = data.instructorId === profile.uid || data.professor === formatName(profile);
@@ -30,9 +31,6 @@ export const StudentCalendarView = ({ profile }: { profile: UserProfile }) => {
           shouldInclude = true;
         } else if (profile.role === 'student') {
           shouldInclude = enrolledIds.includes(data.id);
-        } else {
-          const relevantYear = profile.yearLevel === '1st Year' ? profile.firstYearSchoolYear : profile.secondYearSchoolYear;
-          shouldInclude = data.yearLevel === profile.yearLevel && data.schoolYear === relevantYear;
         }
         
         if (shouldInclude && data.status !== 'archived') {

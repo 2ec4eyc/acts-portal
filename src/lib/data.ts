@@ -28,7 +28,7 @@ interface ApiProfile {
   grades?: ApiGrade[];
 }
 interface ApiOffering {
-  id: string; legacyId: string | null; name: string; yearLevel: number; semester: number; schoolYear: string;
+  id: string; legacyId: string | null; name: string; yearLevel: number; schoolType: 'day' | 'night' | null; semester: number; schoolYear: string;
   instructorId: string | null; instructorFirstName: string | null; instructorLastName: string | null;
   instructorName: string | null; units: number; deletedAt: string | null; createdAt: string;
   schedule: null | { startsOn: string; startTime: string; endTime: string; frequency: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly'; weekdays: number[] };
@@ -137,6 +137,7 @@ export function toCourse(o: ApiOffering): Course {
     daysOfWeek: s ? s.weekdays.map((d) => WEEKDAYS[d]) : [],
     frequency: s && s.frequency !== 'once' ? FREQUENCY[s.frequency] : 'Weekly',
     yearLevel: YEAR[o.yearLevel as 1 | 2],
+    schoolType: o.schoolType === 'night' ? 'Night School' : o.schoolType === 'day' ? 'Day School' : undefined,
     semester: SEMESTER[o.semester as 1 | 2 | 3],
     schoolYear: o.schoolYear === 'unknown' ? undefined : o.schoolYear,
     units: o.units,
@@ -227,6 +228,7 @@ function courseFields(c: Partial<Course>) {
     name: c.name,
     instructorId: c.instructorId || null,
     yearLevel: yearNumber(c.yearLevel) ?? 1,
+    ...(c.schoolType && { schoolType: c.schoolType === 'Night School' ? 'night' : 'day' }),
     semester: semesterNumber(c.semester) ?? 1,
     schoolYear: c.schoolYear,
     ...(c.units !== undefined && { units: c.units }),
@@ -367,3 +369,13 @@ export const uploadFile = (f: {
 export const setFileArchived = (id: string, archived: boolean) =>
   write(() => api(`materials/${id}`, { method: 'PATCH', body: { archived } }));
 export const deleteFile = (id: string) => write(() => api(`materials/${id}`, { method: 'DELETE' }));
+
+export interface MismatchedStudent {
+  studentId: string; studentName: string; studentNo: string | null; schoolType: 'day' | 'night' | null; cohort: string | null;
+  /** Why the student can't be removed from the course (a grade or attendance is recorded), or null. */
+  cannotRemove: string | null;
+}
+/** Students in a course who aren't from its Day/Night school (admins). */
+export const fetchMismatched = (courseId: string) => api<MismatchedStudent[]>(`offerings/${courseId}/mismatched`);
+export const unenrollStudents = (courseId: string, studentIds: string[]) =>
+  write(() => api<{ removed: number; skipped: { studentId: string; reason: string }[] }>(`offerings/${courseId}/unenroll`, { method: 'POST', body: { studentIds } }));
