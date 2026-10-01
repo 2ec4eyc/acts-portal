@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { call, route, setup, type Fixture, type Handler } from "./helpers.js";
 
 let f: Fixture;
-let list: Handler, one: Handler, restore: Handler, mismatched: Handler, unenroll: Handler;
+let list: Handler, one: Handler, restore: Handler, students: Handler, enroll: Handler, unenroll: Handler;
 
 const newOffering = (overrides: Record<string, unknown> = {}) => ({
   name: "Church History",
@@ -16,6 +16,8 @@ const newOffering = (overrides: Record<string, unknown> = {}) => ({
   schedule: { startsOn: "2027-01-11", startTime: "18:00", endTime: "20:00", frequency: "weekly", weekdays: [1, 3] },
   ...overrides,
 });
+const wrongSchool = async (id: string) =>
+  (await call(students, { token: f.tokens.admin, query: { id } })).body.students.filter((s: any) => s.wrongSchool);
 const enrollmentsOf = async (offeringId: string) =>
   (await f.pool.query("SELECT student_id FROM enrollments WHERE offering_id = $1 ORDER BY student_id", [offeringId])).rows
     .map((r) => r.student_id);
@@ -25,7 +27,8 @@ before(async () => {
   list = await route("offerings/index");
   one = await route("offerings/[id]");
   restore = await route("offerings/[id]/restore");
-  mismatched = await route("offerings/[id]/mismatched");
+  students = await route("offerings/[id]/students");
+  enroll = await route("offerings/[id]/enroll");
   unenroll = await route("offerings/[id]/unenroll");
 });
 after(() => f.close());
@@ -138,23 +141,24 @@ describe("PATCH /api/offerings/:id", () => {
   });
   test("wrong-school students are listed and can be removed, unless they have a grade or attendance", async () => {
     const missions = (await call(list, { token: f.tokens.admin })).body.find((o: any) => o.name === "Missions");
-    const m = await call(mismatched, { token: f.tokens.admin, query: { id: missions.id } });
-    assert.deepEqual(m.body.map((s: any) => [s.studentName, s.schoolType, s.cannotRemove]), [["Sam Student", "night", null]]);
+    const m = await wrongSchool(missions.id);
+    assert.deepEqual(m.map((s: any) => [s.studentName, s.schoolType, s.cannotRemove]), [["Sam Student", "night", null]]);
     // Old Testament Survey becomes a Day course: Sam (Night) has a grade there, so he stays.
     await call(one, { method: "PATCH", token: f.tokens.admin, query: { id: f.offerings.c1 }, body: { schoolType: "day" } });
-    const ot = await call(mismatched, { token: f.tokens.admin, query: { id: f.offerings.c1 } });
-    assert.deepEqual(ot.body.map((s: any) => [s.studentName, s.cannotRemove]), [["Sam Student", "Has a grade"]]);
+    const ot = await wrongSchool(f.offerings.c1);
+    assert.deepEqual(ot.map((s: any) => [s.studentName, s.cannotRemove]), [["Sam Student", "Has a grade"]]);
     const kept = await call(unenroll, { method: "POST", token: f.tokens.admin, query: { id: f.offerings.c1 }, body: { studentIds: [f.ids.student] } });
     assert.deepEqual(kept.body, { removed: 0, skipped: [{ studentId: f.ids.student, reason: "Has a grade" }] });
 
     for (const role of ["president", "teacher", "student"] as const) {
-      assert.equal((await call(mismatched, { token: f.tokens[role], query: { id: missions.id } })).status, 403, role);
+      assert.equal((await call(students, { token: f.tokens[role], query: { id: missions.id } })).status, 403, role);
+      assert.equal((await call(enroll, { method: "POST", token: f.tokens[role], query: { id: missions.id }, body: { studentIds: [f.ids.student] } })).status, 403, role);
       assert.equal((await call(unenroll, { method: "POST", token: f.tokens[role], query: { id: missions.id }, body: { studentIds: [f.ids.student] } })).status, 403, role);
     }
     const r = await call(unenroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.student, f.ids.teacher] } });
     assert.deepEqual(r.body, { removed: 1, skipped: [{ studentId: f.ids.teacher, reason: "Not enrolled" }] });
     assert.deepEqual(await enrollmentsOf(missions.id), [f.ids.student2]);
-    assert.deepEqual((await call(mismatched, { token: f.tokens.admin, query: { id: missions.id } })).body, []);
+    assert.deepEqual(await wrongSchool(missions.id), []);
     const audit = (await f.pool.query("SELECT entity_id, data FROM audit_log WHERE action = 'enrollment.removed'")).rows;
     assert.deepEqual(audit, [{ entity_id: f.ids.student, data: { offeringId: missions.id } }]);
   });
@@ -172,6 +176,38 @@ describe("PATCH /api/offerings/:id", () => {
   test("unknown or malformed ids are 404", async () => {
     assert.equal((await call(one, { token: f.tokens.admin, query: { id: "00000000-0000-4000-8000-000000000000" } })).status, 404);
     assert.equal((await call(one, { token: f.tokens.admin, query: { id: "c1" } })).status, 404);
+  });
+});
+
+describe("adding a student by hand", () => {
+  test("an admin adds a Night student to a Day course as an exception; it shows on their schedule", async () => {
+    // Missions is a Day course (from the PATCH tests); Sam is a Night student and was removed above.
+    const missions = (await call(list, { token: f.tokens.admin })).body.find((o: any) => o.name === "Missions");
+    const r = await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.student] } });
+    assert.deepEqual(r.body, { added: 1, skipped: [] });
+    const row = (await call(students, { token: f.tokens.admin, query: { id: missions.id } })).body.students.find((s: any) => s.studentId === f.ids.student);
+    assert.deepEqual([row.manual, row.wrongSchool, row.schoolType], [true, false, "night"], "an exception, not a mistake");
+    assert.ok((await call(list, { token: f.tokens.student })).body.some((o: any) => o.name === "Missions"));
+    const again = await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.student] } });
+    assert.deepEqual(again.body, { added: 0, skipped: [{ studentId: f.ids.student, reason: "Already enrolled" }] });
+    const audit = (await f.pool.query("SELECT actor_id, entity_id, data FROM audit_log WHERE action = 'enrollment.added'")).rows;
+    assert.deepEqual(audit, [{ actor_id: f.ids.admin, entity_id: f.ids.student, data: { offeringId: missions.id } }]);
+  });
+  test("only active students can be added, and not to an archived course", async () => {
+    const missions = (await call(list, { token: f.tokens.admin })).body.find((o: any) => o.name === "Missions");
+    assert.equal((await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.teacher] } })).status, 400);
+    assert.equal((await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.old] } })).status, 400);
+    assert.equal((await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [] } })).status, 400);
+    const archived = (await call(list, { token: f.tokens.admin, query: { includeDeleted: "true" } })).body.find((o: any) => o.deletedAt);
+    assert.equal((await call(enroll, { method: "POST", token: f.tokens.admin, query: { id: archived.id }, body: { studentIds: [f.ids.student] } })).status, 409);
+  });
+  test("a hand-added student stays when automatic enrollment runs again, and can be removed", async () => {
+    const missions = (await call(list, { token: f.tokens.admin })).body.find((o: any) => o.name === "Missions");
+    await call(one, { method: "PATCH", token: f.tokens.admin, query: { id: missions.id }, body: { units: 2 } });   // re-runs matching
+    assert.ok((await enrollmentsOf(missions.id)).includes(f.ids.student));
+    const r = await call(unenroll, { method: "POST", token: f.tokens.admin, query: { id: missions.id }, body: { studentIds: [f.ids.student] } });
+    assert.equal(r.body.removed, 1);
+    assert.ok(!(await enrollmentsOf(missions.id)).includes(f.ids.student));
   });
 });
 

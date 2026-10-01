@@ -30,7 +30,7 @@ import { Card } from '../components/Card';
 import { CourseCalendar } from '../components/CourseCalendar';
 import { FormField } from '../components/FormField';
 import { CalendarDayModal } from '../components/modals/CalendarDayModal';
-import { WrongSchoolModal } from '../components/modals/WrongSchoolModal';
+import { CourseStudentsModal } from '../components/modals/CourseStudentsModal';
 import { PermissionDeniedGate } from '../components/PermissionDeniedGate';
 import { ApiError } from '../lib/api';
 import { archiveCourses, fetchCourses, fetchUsers, restoreCourses, saveCourse } from '../lib/data';
@@ -242,7 +242,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
           <AlertTriangle size={18} className="shrink-0 text-amber-600" aria-hidden="true" />
           <span className="flex-1 min-w-[200px]">
             {unsetCount > 0
-              ? <><b>{unsetCount} course{unsetCount === 1 ? ' has' : 's have'} no Day/Night school.</b> They won't enroll new students until you set it (Edit → School).</>
+              ? <><b>{unsetCount} course{unsetCount === 1 ? ' has' : 's have'} no Day/Night school.</b> They won't enroll new students until you set it (Edit → School). To add one student by hand, use a course's Students button.</>
               : 'Every course has a Day/Night school.'}
           </span>
           <button type="button" onClick={() => setUnsetOnly(!unsetOnly)} className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[10px] font-black uppercase tracking-wider hover:bg-amber-100">
@@ -470,9 +470,9 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                 </button>
                                 <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-emerald-500">Duplicate</span>
                               </div>
-                              {profileRole === 'admin' && c.schoolType && (
+                              {profileRole === 'admin' && (
                                 <div className="flex flex-col items-center gap-1 group">
-                                  <button onClick={() => setChecking(c)} aria-label={`Check students' school in ${c.name}`}
+                                  <button onClick={() => setChecking(c)} aria-label={`Students in ${c.name}`}
                                     className="p-2 md:p-2.5 text-fb-textSecondary hover:bg-amber-500 hover:text-white rounded-xl transition-all shadow-sm border border-fb-border">
                                     <UsersIcon size={14} />
                                   </button>
@@ -581,7 +581,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                         >
                           <Copy size={10} /> Duplicate
                         </button>
-                        {profileRole === 'admin' && c.schoolType && (
+                        {profileRole === 'admin' && (
                           <button onClick={() => setChecking(c)} className="flex items-center gap-1.5 px-2.5 py-1 bg-fb-gray rounded-lg text-[9px] md:text-[10px] font-bold text-fb-textSecondary uppercase">
                             <UsersIcon size={10} /> Students
                           </button>
@@ -816,7 +816,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
       )}
 
       {/* Calendar Popup Modal */}
-      {checking && <WrongSchoolModal course={checking} onClose={() => setChecking(null)} />}
+      {checking && <CourseStudentsModal course={checking} onClose={() => setChecking(null)} />}
       {dayDetailData && (
         <CalendarDayModal 
           data={dayDetailData} 

@@ -162,6 +162,9 @@ export const enrollments = pgTable("enrollments", {
   studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),
   status: enrollmentStatus("status").notNull().default("enrolled"),
   enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Added by an admin outside the Day/Night + year matching (an exception), rather than automatically. */
+  manual: boolean("manual").notNull().default(false),
+  addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
 }, (t) => [
   uniqueIndex("enrollments_offering_student_uq").on(t.offeringId, t.studentId),
   index("enrollments_student_idx").on(t.studentId),

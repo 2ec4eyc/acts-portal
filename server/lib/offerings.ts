@@ -152,15 +152,16 @@ export async function setOfferingDeleted(db: DbOrTx, id: string, deletedBy: stri
 }
 
 /**
- * Students enrolled in an offering who don't belong to its school (Day/Night), e.g. from before the
- * course had one. Each says whether it can be removed: never when a grade or attendance is recorded.
+ * Everyone enrolled in an offering, with how they got there and whether they belong: `wrongSchool` marks
+ * automatic enrollments from the other Day/Night school (e.g. from before the course had one); students
+ * added by hand are exceptions on purpose. `cannotRemove` says why removing isn't allowed (grade or
+ * attendance recorded), or null.
  */
-export async function mismatchedStudents(db: DbOrTx, offeringId: string) {
+export async function courseStudents(db: DbOrTx, offeringId: string) {
   const [o] = await db.select({ schoolType: courseOfferings.schoolType }).from(courseOfferings).where(eq(courseOfferings.id, offeringId));
   if (!o) throw new HttpError(404, "Offering not found");
-  if (!o.schoolType) return [];
   const rows = (await db.execute(sql`
-    SELECT u.id, u.first_name, u.last_name, sr.student_no, sr.school_type, c.name AS cohort,
+    SELECT u.id, u.first_name, u.last_name, sr.student_no, sr.school_type, sr.current_year_level, c.name AS cohort, e.manual,
            (g.value IS NOT NULL OR coalesce(g.is_incomplete, false)) AS has_grade,
            EXISTS (SELECT 1 FROM attendance_records ar JOIN attendance_sessions s ON s.id = ar.session_id
                    WHERE s.offering_id = e.offering_id AND ar.student_id = e.student_id) AS has_attendance
@@ -169,20 +170,49 @@ export async function mismatchedStudents(db: DbOrTx, offeringId: string) {
     LEFT JOIN student_records sr ON sr.user_id = e.student_id
     LEFT JOIN cohorts c ON c.id = sr.cohort_id
     LEFT JOIN grades g ON g.enrollment_id = e.id
-    WHERE e.offering_id = ${offeringId} AND sr.school_type IS DISTINCT FROM ${o.schoolType}::school_type
+    WHERE e.offering_id = ${offeringId}
     ORDER BY u.last_name, u.first_name`)).rows as Record<string, unknown>[];
-  return rows.map((r) => ({
-    studentId: r.id as string, studentName: `${r.first_name} ${r.last_name}`, studentNo: (r.student_no as string) ?? null,
-    schoolType: (r.school_type as "day" | "night" | null) ?? null, cohort: (r.cohort as string) ?? null,
-    cannotRemove: r.has_grade ? "Has a grade" : r.has_attendance ? "Has attendance" : null,
-  }));
+  return {
+    schoolType: o.schoolType,
+    students: rows.map((r) => ({
+      studentId: r.id as string, studentName: `${r.first_name} ${r.last_name}`, studentNo: (r.student_no as string) ?? null,
+      schoolType: (r.school_type as "day" | "night" | null) ?? null, yearLevel: (r.current_year_level as number) ?? null,
+      cohort: (r.cohort as string) ?? null, manual: Boolean(r.manual),
+      wrongSchool: !!o.schoolType && !r.manual && r.school_type !== o.schoolType,
+      cannotRemove: r.has_grade ? "Has a grade" : r.has_attendance ? "Has attendance" : null,
+    })),
+  };
+}
+
+export const AddStudentsInput = z.strictObject({ studentIds: z.array(z.uuid()).min(1).max(200) });
+
+/** Adds students to an offering by hand (an exception to the automatic matching). Audited. */
+export async function addStudents(db: DbOrTx, actorId: string, offeringId: string, studentIds: string[]) {
+  const [o] = await db.select({ deletedAt: courseOfferings.deletedAt }).from(courseOfferings).where(eq(courseOfferings.id, offeringId));
+  if (!o) throw new HttpError(404, "Offering not found");
+  if (o.deletedAt) throw new HttpError(409, "This course is archived");
+  const ids = [...new Set(studentIds)];
+  const found = await db.select({ id: users.id, role: users.role, status: users.status }).from(users).where(inArray(users.id, ids));
+  const bad = ids.filter((id) => { const u = found.find((f) => f.id === id); return !u || u.role !== "student" || u.status === "archived"; });
+  if (bad.length) throw new HttpError(400, "studentIds: every id must be an active student account");
+  const added = await db.insert(enrollments).values(ids.map((studentId) => ({ offeringId, studentId, manual: true, addedBy: actorId })))
+    .onConflictDoNothing().returning({ studentId: enrollments.studentId });
+  if (added.length) {
+    await db.insert(auditLog).values(added.map((r) => ({
+      actorId, action: "enrollment.added", entity: "user", entityId: r.studentId, data: { offeringId },
+    })));
+  }
+  return {
+    added: added.length,
+    skipped: ids.filter((id) => !added.some((r) => r.studentId === id)).map((studentId) => ({ studentId, reason: "Already enrolled" })),
+  };
 }
 
 export const UnenrollInput = z.strictObject({ studentIds: z.array(z.uuid()).min(1).max(500) });
 
 /** Removes students from an offering, except those with a grade or attendance there. Audited. */
 export async function unenroll(db: DbOrTx, actorId: string, offeringId: string, studentIds: string[]) {
-  const all = await mismatchedOrAny(db, offeringId, studentIds);
+  const all = await enrollmentStates(db, offeringId, studentIds);
   const removable = all.filter((s) => !s.cannotRemove).map((s) => s.studentId);
   const skipped = [
     ...all.filter((s) => s.cannotRemove).map((s) => ({ studentId: s.studentId, reason: s.cannotRemove! })),
@@ -198,7 +228,7 @@ export async function unenroll(db: DbOrTx, actorId: string, offeringId: string, 
 }
 
 /** Enrollment state of the given students in an offering (any school), with the same removal rule. */
-async function mismatchedOrAny(db: DbOrTx, offeringId: string, studentIds: string[]) {
+async function enrollmentStates(db: DbOrTx, offeringId: string, studentIds: string[]) {
   const rows = (await db.execute(sql`
     SELECT e.student_id,
            (g.value IS NOT NULL OR coalesce(g.is_incomplete, false)) AS has_grade,
