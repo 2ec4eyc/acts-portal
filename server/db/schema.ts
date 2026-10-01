@@ -381,6 +381,17 @@ export const invoiceLines = pgTable("invoice_lines", {
   amount: money("amount").notNull(),
 }, (t) => [check("invoice_lines_amount_ck", sql`${t.amount} > 0`)]);
 
+/** Saved charge sets for billing. Invoices copy the lines, so editing or deleting one never changes an invoice. */
+export const billingTemplates = pgTable("billing_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),               // the invoice's "What for"
+  lines: jsonb("lines").$type<{ description: string; amount: number }[]>().notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("billing_templates_name_lower_uq").on(sql`lower(${t.name})`)]);
+
 export const receiptUploads = pgTable("receipt_uploads", {
   id: uuid("id").primaryKey().defaultRandom(),
   studentId: uuid("student_id").notNull().references(() => users.id, { onDelete: "restrict" }),

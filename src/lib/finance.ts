@@ -42,6 +42,9 @@ export interface StudentBalance {
   studentId: string; studentName: string; studentNo: string | null; cohort: string | null; archived: boolean;
   charged: number; paid: number; outstanding: number; overdueCount: number; pendingReceipts: number;
 }
+export interface ChargeLine { description: string; amount: number }
+export interface BillingTemplate { id: string; name: string; description: string; lines: ChargeLine[]; total: number; updatedAt: string }
+export type TemplateInput = { name: string; description: string; lines: ChargeLine[] };
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 export const formatPeso = (n: number) => peso.format(n);
@@ -63,6 +66,11 @@ export const recordPayment = (input: { studentId: string; amount: number; paidOn
 export const voidPayment = (id: string, reason: string) => write(api(`finance/payments/${id}`, { method: 'PATCH', body: { void: { reason } } }));
 export const reviewReceipt = (id: string, body: { decision: 'approve'; amount?: number; note?: string | null } | { decision: 'reject'; note: string }) =>
   write(api(`finance/receipts/${id}/review`, { method: 'POST', body }));
+
+export const fetchTemplates = () => api<BillingTemplate[]>('finance/templates');
+export const createTemplate = (input: TemplateInput) => write(api<BillingTemplate>('finance/templates', { method: 'POST', body: input }));
+export const updateTemplate = (id: string, input: TemplateInput) => write(api<BillingTemplate>(`finance/templates/${id}`, { method: 'PATCH', body: input }));
+export const deleteTemplate = (id: string) => write(api(`finance/templates/${id}`, { method: 'DELETE' }));
 
 /** Opens a receipt in a new tab (works for both R2 links and files stored in the database). */
 export async function openReceipt(id: string) {
