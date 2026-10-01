@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CheckCheck, MessageCircle, X } from 'lucide-react';
+import { AlertTriangle, Bell, BookOpen, CheckCheck, MessageCircle, X } from 'lucide-react';
 
 import { fetchNotifications, markNotificationsRead, timeAgo, type Notification } from '../lib/inbox';
 import { live } from '../lib/live';
@@ -64,6 +64,8 @@ export const NotificationBell = ({ onOpenLink }: { onOpenLink: (page: string) =>
                   <button type="button" onClick={() => openItem(n)} className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-fb-hover ${n.readAt ? '' : 'bg-fb-blue/5'}`}>
                     {n.kind === 'message'
                       ? <MessageCircle size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
+                      : n.kind === 'course_material'
+                      ? <BookOpen size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
                       : <AlertTriangle size={18} aria-hidden="true" className={`shrink-0 mt-0.5 ${n.kind === 'attendance_escalation' ? 'text-red-600' : 'text-amber-600'}`} />}
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-2">

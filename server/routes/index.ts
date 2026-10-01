@@ -31,6 +31,7 @@ import health from "./health.js";
 import material from "./materials/[id].js";
 import materialFile from "./materials/[id]/file.js";
 import materials from "./materials/index.js";
+import materialUploadUrl from "./materials/upload-url.js";
 import me from "./me.js";
 import meSession from "./me-session.js";
 import offering from "./offerings/[id].js";
@@ -86,6 +87,7 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["grades/bulk", gradesBulk],
   ["attendance", attendance],
   ["materials", materials],
+  ["materials/upload-url", materialUploadUrl],
   ["materials/:id", material],
   ["materials/:id/file", materialFile],
   ["transcripts", transcripts],

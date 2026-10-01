@@ -20,7 +20,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Grade any course, bulk grades | | | ✓ | ✓ |
 | Take attendance | | | ✓ | ✓ |
 | Courses (create, edit, archive) | | | | ✓ |
-| Upload files to own courses | | ✓ | | ✓ (any course) |
+| Post course materials (files, links) | | ✓ (own courses) | ✓ (any course) | ✓ (any course) |
 | Issue and revoke official transcripts | | | | ✓ |
 | Read issued transcripts | own | ✓ | ✓ | ✓ |
 | Audit log, settings and feature switches | | | | ✓ |
@@ -56,9 +56,10 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | GET | `/api/attendance?offeringId=&date=` | That day's roster of enrolled students. |
 | GET | `/api/attendance?offeringId=\|studentId=` | All records. |
 | PUT | `/api/attendance` | `{ offeringId, date, records: [{ studentId, status: present\|absent\|late, isExcused, notes }] }` |
-| GET, POST | `/api/materials?category=&offeringId=&mine=true&archived=true\|false\|all` | POST: `{ offeringId, category, fileName, contentType, data (base64), eventDate, eventTime, instructions }`, max 800 KB. Students see active files of their own courses only. |
-| GET, PATCH, DELETE | `/api/materials/:id` | PATCH `{ archived }`. Uploader or admin. |
-| GET | `/api/materials/:id/file` | Download (same visibility as the list). |
+| POST | `/api/materials/upload-url` | Teachers (own courses), admins, president and VP (any course). `{ offeringId, fileName, contentType, sizeBytes }` returns `{ mode: "r2", key, url }`: PUT the file to `url` within 5 minutes. Up to 20 MB; PDF, Word, PowerPoint, Excel, text, zip and images. Without R2 it returns `{ mode: "db", maxBytes }`. Returns 507 when storage is full. |
+| GET, POST | `/api/materials?category=&offeringId=&mine=true&archived=true\|false\|all` | POST: `{ offeringId, category, fileName, eventDate, eventTime, instructions }` plus exactly one of `key` (an R2 upload, with `contentType`), `data` (base64 ≤ 800 KB, only without R2, with `contentType`) or `url` (an http(s) link; `fileName` is its title). The course's active students get a `course_material` notification, and the response includes `notified`. Students see active materials of their own courses only. |
+| GET, PATCH, DELETE | `/api/materials/:id` | PATCH `{ archived }`. Uploader or admin. DELETE also removes the R2 object. |
+| GET | `/api/materials/:id/file` | `{ url, link }` for links and R2 files (a 5-minute link), or the file itself for older files stored in the database. Same visibility as the list. |
 | GET | `/api/transcripts/preview?studentId=` | The transcript as it would be issued now. Lists finished courses (a grade or Incomplete) in active offerings by term, with units, remarks, units earned and a unit-weighted general average (Incomplete excluded). Admins. |
 | GET, POST | `/api/transcripts?studentId=` | GET lists issued transcripts without their content. POST `{ studentId, purpose? }` issues one: content is frozen at issue time and gets a verification code (`XXXX-XXXX-XXXX`). Audited. |
 | GET | `/api/transcripts/:id` | One issued transcript with its frozen `content`. |

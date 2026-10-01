@@ -72,7 +72,9 @@ describe("database storage: usage and deleting files", () => {
     const u = (await call(h["storage/index"], { token: f.tokens.admin })).body;
     assert.equal(u.mode, "db");
     assert.equal(u.files, 3);
-    assert.equal(u.usedBytes, 3 * 208);
+    // The seed's course notes are stored in the database too, and count as course files.
+    assert.equal(u.usedBytes, 3 * 208 + u.courseFiles.bytes);
+    assert.equal(u.courseFiles.files, 3);
     assert.deepEqual([u.byStatus.pending.files, u.byStatus.approved.files, u.byStatus.rejected.files], [1, 1, 1]);
     assert.deepEqual([u.limitBytes, u.warnBytes, u.level, u.measured], [9e9, 7e9, "ok", null]);
   });
@@ -104,7 +106,7 @@ describe("database storage: usage and deleting files", () => {
     assert.match(file.body.error, /deleted on .* to free space/);
     assert.equal((await f.pool.query("SELECT count(*)::int AS n FROM receipt_files WHERE receipt_id = $1", [rejected])).rows[0].n, 0);
     const u = (await call(h["storage/index"], { token: f.tokens.admin })).body;
-    assert.deepEqual([u.files, u.deletedFiles, u.usedBytes], [2, 1, 2 * 208]);
+    assert.deepEqual([u.files, u.deletedFiles, u.usedBytes - u.courseFiles.bytes], [2, 1, 2 * 208]);
     const deleted = (await call(h["storage/files/index"], { token: f.tokens.admin, query: { status: "deleted" } })).body;
     assert.equal(deleted.files[0].cannotDelete, "Already deleted");
 
@@ -137,7 +139,7 @@ describe("R2: recount, orphans, alerts and the upload limit", () => {
 
   before(async () => {
     Object.assign(process.env, { R2_ACCOUNT_ID: "acct", R2_ACCESS_KEY_ID: "key", R2_SECRET_ACCESS_KEY: "secret", R2_BUCKET: "receipts-test", CRON_SECRET: "test-secret" });
-    bucket.list = async () => objects;
+    bucket.list = async (prefix) => objects.filter((o) => o.key.startsWith(prefix));
     bucket.remove = async (keys) => { removed.push(...keys); objects = objects.filter((o) => !keys.includes(o.key)); };
     await f.pool.query(`INSERT INTO receipt_uploads (student_id, amount_claimed, paid_on, method, file_key, content_type, size_bytes, sha256)
       VALUES ($1, 100, current_date, 'cash', $2, 'image/jpeg', 1000, $3)`, [f.ids.student, `r2:${key}`, "e".repeat(64)]);
@@ -203,5 +205,20 @@ describe("R2: recount, orphans, alerts and the upload limit", () => {
     const u = (await call(h["storage/index"], { token: f.tokens.admin })).body;
     assert.equal(u.measured.bytes, 9e9 - 1500);
     assert.equal(u.level, "full", "still within 2 MB of the limit");
+  });
+
+  test("course files in the bucket count too; unregistered ones are cleaned up after a day", async () => {
+    await f.pool.query(`INSERT INTO materials (offering_id, uploaded_by, category, file_name, content_type, size_bytes, file_key)
+      VALUES ($1, $2, 'notes', 'Slides.pdf', 'application/pdf', 4000, 'r2:materials/m/kept')`, [f.offerings.c1, f.ids.teacher]);
+    objects = [
+      { key: "materials/m/kept", size: 4000, lastModified: old },
+      { key: "materials/m/never-registered", size: 900, lastModified: old },
+    ];
+    removed = [];
+    const r = (await cron()).body.storage.counted;
+    assert.deepEqual([r.objects, r.bytes, r.orphansRemoved], [1, 4000, 1]);
+    assert.deepEqual(removed, ["materials/m/never-registered"]);
+    const u = (await call(h["storage/index"], { token: f.tokens.admin })).body;
+    assert.deepEqual(u.courseFiles, { files: 1, bytes: 4000 });
   });
 });

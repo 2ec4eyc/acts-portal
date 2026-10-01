@@ -1,7 +1,7 @@
 // Data access for the pages. Talks to /api (docs/API.md) and converts between the API's shapes and
 // the ones the pages were built around when they read Firestore (UserProfile with embedded grades,
 // Course, AttendanceRecord, uploaded-file objects), so the UI code keeps working unchanged.
-import { api, downloadFile as download } from './api';
+import { api, fetchRaw } from './api';
 import { refreshAll } from './live';
 import { DAY_SHORT, dayIndex } from './schedule';
 import { formatName } from './format';
@@ -44,7 +44,7 @@ interface ApiRoster {
 interface ApiMaterial {
   id: string; offeringId: string; courseName: string; uploadedBy: string; uploaderFirstName: string; uploaderLastName: string;
   category: 'notes' | 'exams' | 'activity'; fileName: string; contentType: string | null; sizeBytes: number | null;
-  eventDate: string | null; eventTime: string | null; instructions: string | null; archivedAt: string | null; createdAt: string;
+  linkUrl: string | null; eventDate: string | null; eventTime: string | null; instructions: string | null; archivedAt: string | null; createdAt: string;
 }
 
 // ---------- vocabulary ----------
@@ -162,6 +162,8 @@ const toAttendance = (a: ApiAttendance): AttendanceRecord => ({
 export interface UploadedFile {
   id: string; courseId: string; courseName: string; teacherName: string; teacherUid: string;
   category: 'notes' | 'exams' | 'activity'; fileName: string; fileType: string; sizeBytes: number | null;
+  /** Set for a posted link (Google Drive, YouTube, …); fileName is then its title. */
+  linkUrl?: string;
   eventDate?: string; eventTime?: string; instructions?: string; archived: boolean; createdAt?: { seconds: number };
 }
 const toFile = (m: ApiMaterial): UploadedFile => ({
@@ -174,6 +176,7 @@ const toFile = (m: ApiMaterial): UploadedFile => ({
   fileName: m.fileName,
   fileType: m.contentType ?? 'application/octet-stream',
   sizeBytes: m.sizeBytes,
+  linkUrl: orUndefined(m.linkUrl),
   eventDate: orUndefined(m.eventDate),
   eventTime: orUndefined(m.eventTime?.slice(0, 5)),
   instructions: orUndefined(m.instructions),
@@ -290,7 +293,29 @@ export const fetchFiles = async (filter: { category?: UploadedFile['category']; 
     query: { category: filter.category, mine: filter.mine ? 'true' : undefined, offeringId: filter.courseId, archived: 'all' },
   })).map(toFile);
 
-export const downloadMaterial = (file: Pick<UploadedFile, 'id' | 'fileName'>) => download(`materials/${file.id}/file`, file.fileName);
+/**
+ * Opens a course file or link. Links and files in R2 open in a new tab (from a short-lived link); older
+ * files stored in the database are downloaded.
+ */
+export async function downloadMaterial(file: Pick<UploadedFile, 'id' | 'fileName'>) {
+  const tab = window.open('', '_blank');   // opened now, so pop-up blockers allow it
+  try {
+    const res = await fetchRaw(`materials/${file.id}/file`);
+    if (res.headers.get('content-type')?.includes('application/json')) {
+      const { url } = (await res.json()) as { url: string };
+      if (tab) { tab.opener = null; tab.location.href = url; } else window.location.href = url;
+      return;
+    }
+    tab?.close();
+    const blobUrl = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), { href: blobUrl, download: file.fileName });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  } catch (e) {
+    tab?.close();
+    throw e;
+  }
+}
 
 // ---------- writes ----------
 
@@ -354,18 +379,66 @@ export const saveAttendance = (courseId: string, date: string, records: Pick<Att
     },
   }));
 
-export const uploadFile = (f: {
-  courseId: string; category: UploadedFile['category']; fileName: string; fileType: string; fileData: string;
-  eventDate?: string; eventTime?: string; instructions?: string;
-}) =>
-  write(async () => toFile(await api<ApiMaterial>('materials', {
-    method: 'POST',
-    body: {
-      offeringId: f.courseId, category: f.category, fileName: f.fileName,
-      contentType: f.fileType || 'application/octet-stream', data: f.fileData,
-      eventDate: f.eventDate || null, eventTime: f.eventTime || null, instructions: blankToNull(f.instructions),
-    },
-  })));
+/** Course file types accepted (the browser sometimes leaves file.type empty, so the name decides then). */
+const EXT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  txt: 'text/plain', zip: 'application/zip', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+};
+export const MATERIAL_ACCEPT = Object.keys(EXT_TYPES).map((e) => `.${e}`).join(',');
+export const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
+export function materialType(file: File) {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const known = Object.values(EXT_TYPES);
+  if (file.type && known.includes(file.type)) return file.type;
+  return EXT_TYPES[ext] ?? null;
+}
+
+export interface MaterialMeta {
+  courseId: string; category: UploadedFile['category']; eventDate?: string; eventTime?: string; instructions?: string;
+}
+const metaBody = (m: MaterialMeta) => ({
+  offeringId: m.courseId, category: m.category,
+  eventDate: m.eventDate || null, eventTime: m.eventTime || null, instructions: blankToNull(m.instructions),
+});
+type Posted = UploadedFile & { notified: number };
+const posted = (m: ApiMaterial & { notified: number }): Posted => ({ ...toFile(m), notified: m.notified });
+
+const toBase64 = (buf: ArrayBuffer) => {
+  let bin = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+
+/**
+ * Uploads a course file: straight to the R2 bucket (up to 20 MB) when it's set up, otherwise through the
+ * API into the database (up to 800 KB). The course's students are notified.
+ */
+export async function uploadMaterialFile(file: File, meta: MaterialMeta, title?: string): Promise<Posted> {
+  const contentType = materialType(file);
+  if (!contentType) throw new Error('This file type isn\'t accepted. Use PDF, Word, PowerPoint, Excel, text, zip or an image.');
+  if (file.size > MAX_MATERIAL_BYTES) throw new Error('The file must be under 20 MB.');
+  const fileName = title?.trim() || file.name;
+  const target = await api<{ mode: 'r2'; key: string; url: string; maxBytes: number } | { mode: 'db'; maxBytes: number }>('materials/upload-url', {
+    method: 'POST', body: { offeringId: meta.courseId, fileName, contentType, sizeBytes: file.size },
+  });
+  if (target.mode === 'r2') {
+    const put = await fetch(target.url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file });
+    if (!put.ok) throw new Error('The upload failed. Please try again.');
+    return write(async () => posted(await api('materials', { method: 'POST', body: { ...metaBody(meta), fileName, contentType, key: target.key } })));
+  }
+  if (file.size > target.maxBytes) {
+    throw new Error(`Files must be under ${Math.round(target.maxBytes / 1024)} KB until file storage (Cloudflare R2) is set up.`);
+  }
+  const data = toBase64(await file.arrayBuffer());
+  return write(async () => posted(await api('materials', { method: 'POST', body: { ...metaBody(meta), fileName, contentType, data } })));
+}
+
+/** Posts a link (Google Drive, YouTube, …) to a course. */
+export const postMaterialLink = (title: string, url: string, meta: MaterialMeta) =>
+  write(async () => posted(await api('materials', { method: 'POST', body: { ...metaBody(meta), fileName: title.trim(), url: url.trim() } })));
 
 export const setFileArchived = (id: string, archived: boolean) =>
   write(() => api(`materials/${id}`, { method: 'PATCH', body: { archived } }));

@@ -8,24 +8,38 @@ import {
   Upload,
   Download,
   FileText,
+  ExternalLink,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 import { ConfirmModal } from '../components/modals/ConfirmModal';
-import { deleteFile, downloadMaterial, fetchCourses, fetchFiles, setFileArchived, uploadFile } from '../lib/data';
+import {
+  deleteFile, downloadMaterial, fetchCourses, fetchFiles, MATERIAL_ACCEPT, MAX_MATERIAL_BYTES, materialType, postMaterialLink,
+  setFileArchived, uploadMaterialFile, type MaterialMeta,
+} from '../lib/data';
 import { live } from '../lib/live';
 import { formatName } from '../lib/format';
 import type { Course, UserProfile } from '../types';
 import { toast } from '../lib/toast';
 
-export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) => {
+const size = (n: number | null) => (n === null ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+/**
+ * Course Materials: notes, exams and activities, as files or links. Teachers post to the courses they
+ * teach; admins, the president and the VP to any course. The course's students are notified.
+ */
+export const CourseMaterialsPage = ({ profile }: { profile: UserProfile }) => {
+  const anyCourse = profile.role === 'admin' || profile.role === 'president' || profile.role === 'vice president';
+  const [courseSearch, setCourseSearch] = useState('');
+  const [kind, setKind] = useState<'file' | 'link'>('file');
+  const [file, setFile] = useState<File | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [title, setTitle] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [category, setCategory] = useState<'notes' | 'exams' | 'activity'>('notes');
-  const [fileName, setFileName] = useState('');
-  const [fileData, setFileData] = useState<string>('');
-  const [fileType, setFileType] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [instructions, setInstructions] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
@@ -52,17 +66,19 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
 
   useEffect(() => {
     return live(fetchCourses, (all) => {
-      const list: Course[] = all.filter((data) => data.instructorId === profile.uid || data.professor === formatName(profile));
+      const list: Course[] = all.filter((data) => data.status !== 'archived'
+        && (anyCourse || data.instructorId === profile.uid || data.professor === formatName(profile)));
       setCourses(list);
       setCoursesLoading(false);
       if (list.length > 0 && !selectedCourseId) {
         setSelectedCourseId(list[0].id);
       }
     });
-  }, [profile.uid, selectedCourseId]);
+  }, [profile.uid, selectedCourseId, anyCourse]);
 
   useEffect(() => {
-    return live(() => fetchFiles({ mine: true }), (files) => {
+    if (!selectedCourseId) return;
+    return live(() => fetchFiles({ courseId: selectedCourseId }), (files) => {
       const list: any[] = [...files];
       list.sort((a, b) => {
         const t1 = a.createdAt?.seconds || 0;
@@ -71,7 +87,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
       });
       setUploadedFiles(list);
     });
-  }, [profile.uid]);
+  }, [selectedCourseId]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -98,74 +114,45 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
     }
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = (picked: File) => {
     setErrorMsg(null);
     setSuccessMsg(null);
-    if (file.size > 800 * 1024) {
-      setErrorMsg("File size must be under 800KB for secure portal storage.");
+    if (!materialType(picked)) {
+      setErrorMsg("This file type isn't accepted. Use PDF, Word, PowerPoint, Excel, text, zip or an image.");
       return;
     }
-    setFileName(file.name);
-    setFileType(file.type);
-    
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      if (uploadEvent.target?.result) {
-        setFileData(uploadEvent.target.result as string);
-      }
-    };
-    reader.onerror = () => {
-      setErrorMsg("Failed to read file.");
-    };
-    reader.readAsDataURL(file);
+    if (picked.size > MAX_MATERIAL_BYTES) {
+      setErrorMsg('The file must be under 20 MB.');
+      return;
+    }
+    setFile(picked);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
-
-    if (!selectedCourseId) {
-      setErrorMsg("Please select a course.");
-      return;
-    }
-    if (!fileData) {
-      setErrorMsg("Please upload a file.");
+    if (!selectedCourseId) { setErrorMsg('Please select a course.'); return; }
+    if (kind === 'file' && !file) { setErrorMsg('Please choose a file.'); return; }
+    if (kind === 'link' && (!title.trim() || !/^https?:\/\//i.test(linkUrl.trim()))) {
+      setErrorMsg('Enter a title and a link starting with https://');
       return;
     }
     if ((category === 'exams' || category === 'activity') && !eventDate) {
-      setErrorMsg("Please specify the date for the activity or exam.");
+      setErrorMsg('Please specify the date for the activity or exam.');
       return;
     }
-
     setLoading(true);
     try {
-      const newFilePayload: Parameters<typeof uploadFile>[0] = {
-        courseId: selectedCourseId,
-        category: category as 'notes' | 'exams' | 'activity',
-        fileName,
-        fileData,
-        fileType,
+      const meta: MaterialMeta = {
+        courseId: selectedCourseId, category,
+        ...(category !== 'notes' && { eventDate, instructions: instructions.trim() || undefined }),
       };
-
-      if (category === 'exams' || category === 'activity') {
-        newFilePayload.eventDate = eventDate;
-        if (instructions.trim()) {
-          newFilePayload.instructions = instructions.trim();
-        }
-      }
-
-      await uploadFile(newFilePayload);
-      setSuccessMsg(`File "${fileName}" successfully uploaded under category "${category === 'notes' ? 'Notes' : category === 'exams' ? 'Exam' : 'Activity'}".`);
-      
-      setFileName('');
-      setFileData('');
-      setFileType('');
-      setEventDate('');
-      setInstructions('');
+      const r = kind === 'link' ? await postMaterialLink(title, linkUrl, meta) : await uploadMaterialFile(file!, meta, title);
+      toast.success(`"${r.fileName}" posted. ${r.notified} student${r.notified === 1 ? ' was' : 's were'} notified.`);
+      setFile(null); setTitle(''); setLinkUrl(''); setEventDate(''); setInstructions('');
     } catch (err: any) {
-      console.error("Upload error:", err);
-      setErrorMsg("Failed to upload file to the database: " + err.message);
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -217,13 +204,13 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
     setConfirmModal({
       isOpen: true,
       title: "Permanently Delete?",
-      message: `Are you sure you want to PERMANENTLY delete "${name}" from the database? This action cannot be undone.`,
+      message: `Are you sure you want to PERMANENTLY delete "${name}"? Students will no longer see it. This action cannot be undone.`,
       confirmText: "Delete",
       variant: 'danger',
       onConfirm: async () => {
         try {
           await deleteFile(fileId);
-          setSuccessMsg(`File "${name}" has been permanently deleted from the database.`);
+          setSuccessMsg(`"${name}" has been permanently deleted.`);
         } catch (err: any) {
           console.error("Delete error:", err);
           setErrorMsg("Failed to permanently delete file: " + err.message);
@@ -241,9 +228,8 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
   return (
     <div className="space-y-10 pb-10">
       <div>
-        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-fb-blue italic mb-1">Teacher Portal</h3>
-        <h2 className="text-3xl font-black text-fb-textPrimary uppercase italic tracking-tighter">Upload Course Files</h2>
-        <p className="text-fb-textSecondary text-sm font-medium">Upload notes for students, or activities and exams for administrative notification.</p>
+        <h2 className="text-3xl font-black text-fb-textPrimary uppercase italic tracking-tighter">Course Materials</h2>
+        <p className="text-fb-textSecondary text-sm font-medium">Post notes, exams and activities as files (up to 20 MB) or links. The course's students are notified and find them on their Course Notes page.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -256,19 +242,24 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
             <div className="py-10 text-center"><RefreshCw className="animate-spin text-fb-blue mx-auto" size={24} /></div>
           ) : courses.length === 0 ? (
             <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl text-xs font-bold border border-amber-100">
-              You are not assigned as an instructor to any active courses. You must be assigned to a course to upload files.
+              {anyCourse ? 'There are no active courses yet.' : 'You are not assigned as an instructor to any active courses. You must be assigned to a course to upload files.'}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">Assigned Course</label>
+                <label htmlFor="material-course" className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">{anyCourse ? 'Course' : 'Assigned Course'}</label>
+                {anyCourse && courses.length > 8 && (
+                  <input type="search" aria-label="Find a course" placeholder="Find a course…" value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)}
+                    className="w-full px-4 py-2 border border-fb-border rounded-xl focus:border-fb-blue bg-white text-xs font-semibold outline-none" />
+                )}
                 <select 
+                  id="material-course"
                   value={selectedCourseId}
                   onChange={(e) => setSelectedCourseId(e.target.value)}
                   className="w-full px-4 py-3 border border-fb-border rounded-xl focus:border-fb-blue bg-fb-gray/30 text-sm font-semibold outline-none transition-all"
                 >
-                  {courses.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.yearLevel})</option>
+                  {courses.filter((c) => c.id === selectedCourseId || `${c.name} ${c.professor} ${c.schoolType ?? ''} ${c.yearLevel} ${c.schoolYear ?? ''}`.toLowerCase().includes(courseSearch.toLowerCase())).map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({[c.yearLevel, c.schoolType?.replace(' School', ''), c.schoolYear].filter(Boolean).join(' · ')})</option>
                   ))}
                 </select>
               </div>
@@ -317,48 +308,71 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
               )}
 
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">Upload File</label>
-                <div 
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer ${dragActive ? 'border-fb-blue bg-fb-blue/5' : 'border-fb-border hover:border-fb-blue/40 bg-fb-gray/10'}`}
-                  onClick={() => document.getElementById('file-upload-input')?.click()}
-                >
-                  <input 
-                    id="file-upload-input"
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                  <div className="flex flex-col items-center space-y-2">
-                    <div className="p-3 bg-white rounded-full border border-fb-border shadow-sm text-fb-blue">
-                      <Upload size={20} />
-                    </div>
-                    {fileName ? (
-                      <div className="space-y-1 max-w-full">
-                        <p className="text-xs font-bold text-fb-textPrimary truncate">{fileName}</p>
-                        <p className="text-[8px] font-black uppercase text-fb-blue">Click or drag to replace</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-fb-textPrimary">Drag & drop files here</p>
-                        <p className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">or click to browse</p>
-                        <p className="text-[8px] text-fb-textSecondary opacity-40">Max 800KB</p>
-                      </div>
-                    )}
-                  </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">Post as</span>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Post as">
+                  {(['file', 'link'] as const).map((k) => (
+                    <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => { setKind(k); setErrorMsg(null); }}
+                      className={`py-2 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${kind === k ? 'bg-fb-blue text-white border-fb-blue shadow-md' : 'bg-white hover:bg-fb-gray border-fb-border text-fb-textSecondary'}`}>
+                      {k === 'file' ? <><Upload size={12} /> File</> : <><LinkIcon size={12} /> Link</>}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <label htmlFor="material-title" className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">{kind === 'link' ? 'Title' : 'Title (optional, defaults to the file name)'}</label>
+                <input id="material-title" type="text" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'link' ? 'e.g. Week 3 lecture recording' : 'e.g. Week 3 notes'}
+                  className="w-full px-4 py-3 border border-fb-border rounded-xl focus:border-fb-blue bg-fb-gray/30 text-sm font-semibold outline-none transition-all" />
+              </div>
+
+              {kind === 'link' ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="material-link" className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">Link</label>
+                  <input id="material-link" type="url" inputMode="url" maxLength={2000} value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://drive.google.com/…"
+                    className="w-full px-4 py-3 border border-fb-border rounded-xl focus:border-fb-blue bg-fb-gray/30 text-sm font-semibold outline-none transition-all" />
+                  <p className="text-[10px] text-fb-textSecondary ml-1">Google Drive, YouTube, or any https link. Make sure students can open it (for Drive: "Anyone with the link").</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label htmlFor="file-upload-input" className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary ml-1">File</label>
+                  <div 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer ${dragActive ? 'border-fb-blue bg-fb-blue/5' : 'border-fb-border hover:border-fb-blue/40 bg-fb-gray/10'}`}
+                    onClick={() => document.getElementById('file-upload-input')?.click()}
+                  >
+                    <input id="file-upload-input" type="file" accept={MATERIAL_ACCEPT} className="hidden" onChange={handleFileChange} />
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="p-3 bg-white rounded-full border border-fb-border shadow-sm text-fb-blue">
+                        <Upload size={20} />
+                      </div>
+                      {file ? (
+                        <div className="space-y-1 max-w-full">
+                          <p className="text-xs font-bold text-fb-textPrimary truncate">{file.name}</p>
+                          <p className="text-[10px] text-fb-textSecondary">{size(file.size)}</p>
+                          <p className="text-[8px] font-black uppercase text-fb-blue">Click or drag to replace</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-fb-textPrimary">Drag & drop a file here</p>
+                          <p className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">or click to browse</p>
+                          <p className="text-[9px] text-fb-textSecondary">PDF, Word, PowerPoint, Excel, text, zip or image · up to 20 MB</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading || !fileData}
+                disabled={loading || (kind === 'file' ? !file : !linkUrl.trim() || !title.trim())}
                 className="w-full py-4 bg-fb-blue text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-600 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? <RefreshCw className="animate-spin" size={16} /> : <Upload size={16} />}
-                <span>{loading ? 'Uploading...' : 'Submit Document'}</span>
+                <span>{loading ? 'Posting…' : kind === 'link' ? 'Post link' : 'Upload file'}</span>
               </button>
             </form>
           )}
@@ -367,7 +381,7 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
         <div className="lg:col-span-2 bg-white p-6 md:p-8 rounded-[2.5rem] border border-fb-border shadow-xl space-y-6 flex flex-col">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h3 className="text-lg font-black text-fb-textPrimary uppercase italic tracking-tight">
-              {isViewTrash ? 'Archived Materials' : 'Your Uploaded Materials'}
+              {isViewTrash ? 'Archived Materials' : `Materials${courses.find((c) => c.id === selectedCourseId) ? ` · ${courses.find((c) => c.id === selectedCourseId)!.name}` : ''}`}
             </h3>
             <div className="flex items-center gap-3">
               <button
@@ -407,8 +421,8 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
                       <span className="text-[10px] font-black text-fb-textSecondary truncate min-w-0 flex-1">{file.courseName}</span>
                     </div>
                     <h4 className="font-bold text-fb-textPrimary text-sm break-all whitespace-normal">{file.fileName}</h4>
-                    <p className="text-[9px] text-fb-textSecondary/60 font-semibold">
-                      Uploaded on: {file.createdAt ? new Date(file.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                    <p className="text-[9px] text-fb-textSecondary/80 font-semibold">
+                      {file.linkUrl ? 'Link' : size(file.sizeBytes)} · {file.teacherName} · {file.createdAt ? new Date(file.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                     </p>
                     {(file.category === 'exams' || file.category === 'activity') && (
                       <div className="space-y-2 mt-2">
@@ -430,9 +444,10 @@ export const TeacherUploadFilesView = ({ profile }: { profile: UserProfile }) =>
                       href="#"
                       onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => toast.error("Download failed: " + err.message)); }}
                       className="p-2.5 bg-white text-fb-blue hover:bg-fb-blue hover:text-white rounded-xl border border-fb-border transition-all shadow-sm flex items-center justify-center"
-                      title="Download"
+                      title={file.linkUrl ? 'Open link' : 'Open / download'}
+                      aria-label={file.linkUrl ? `Open ${file.fileName}` : `Download ${file.fileName}`}
                     >
-                      <Download size={14} />
+                      {file.linkUrl ? <ExternalLink size={14} /> : <Download size={14} />}
                     </a>
                     {!isViewTrash ? (
                       <button 

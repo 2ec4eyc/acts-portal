@@ -13,7 +13,8 @@ const Query = z.object({
 
 // GET  /api/materials[?category=][&offeringId=][&mine=true][&archived=true|false|all]: file list
 //      (no contents; download via /api/materials/:id/file). Students see active files of their courses.
-// POST /api/materials: upload a file (base64, max 800 KB) to a course you teach (admins: any course).
+// POST /api/materials: add a file (R2 key from upload-url, or base64 ≤ 800 KB without R2) or a link to
+//      a course you teach (admins, president and VP: any course). The course's students are notified.
 export default methods({
   GET: async (req, res) => {
     const user = await requireUser(req);
@@ -28,7 +29,7 @@ export default methods({
   },
   POST: async (req, res) => {
     const user = await requireUser(req, "materials:write_own");
-    const id = await uploadMaterial(db, user, MaterialUpload.parse(req.body ?? {}));
-    res.status(201).json(await getVisibleMaterial(db, user, id));
+    const { id, notified } = await uploadMaterial(db, user, MaterialUpload.parse(req.body ?? {}));
+    res.status(201).json({ ...(await getVisibleMaterial(db, user, id)), notified });
   },
 });
