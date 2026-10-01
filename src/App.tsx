@@ -9,9 +9,7 @@ import {
   RefreshCw,
   Menu,
   Briefcase,
-  CheckSquare,
   LogOut,
-  Upload,
   Megaphone,
   Wallet,
   Settings as SettingsIcon,
@@ -33,21 +31,24 @@ import { DEFAULT_FEATURES, fetchPublicSettings, type Features } from './lib/sett
 import { AdminBillingPage } from './pages/AdminBillingPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
-import { AttendanceTracker } from './pages/AttendanceTracker';
-import { CourseManagementPage } from './pages/CourseManagementPage';
 import { OfficeMessages, StudentMessages } from './pages/MessagesPage';
 import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ClassManagementPage, type ClassTab } from './pages/ClassManagementPage';
 import { StudentCalendarView } from './pages/StudentCalendarView';
 import { StudentBillingPage } from './pages/StudentBillingPage';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { StudentGradesView } from './pages/StudentGradesView';
-import { SubmitGrades } from './pages/SubmitGrades';
-import { TeacherGradesView } from './pages/TeacherGradesView';
-import { CourseMaterialsPage } from './pages/CourseMaterialsPage';
 import { StudentNotesPage } from './pages/StudentNotesPage';
 import type { UserProfile } from './types';
+
+// Page ids that open a Class Management tab (old sidebar items keep working as links).
+const CLASS_TAB: Record<string, ClassTab | undefined> = {
+  classes: undefined, courses: 'courses', calendar: 'schedule', upload_files: 'materials', notes: 'materials',
+  attendance: 'attendance', grades: 'grades',
+};
+const CLASS_PAGES = Object.keys(CLASS_TAB);
 
 export const App = () => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -171,11 +172,15 @@ export const App = () => {
       case 'dashboard': return <StudentDashboard profile={profile} />;
       case 'profile': return <ProfilePage profile={profile} />;
       case 'records': return profile ? <StudentGradesView profile={profile} /> : null;
-      case 'calendar': return profile && (!isStudent || features.studentSchedule) ? <StudentCalendarView profile={profile} /> : <StudentDashboard profile={profile} />;
+      case 'calendar':
+        if (!isStudent) return profile ? <ClassManagementPage profile={profile} tab="schedule" /> : null;
+        return profile && features.studentSchedule ? <StudentCalendarView profile={profile} /> : <StudentDashboard profile={profile} />;
       case 'admin': return (!isTeacher && hasAdminView) ? <AdminPanel profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'grades': return hasAdminView && profile ? (profile.role === 'teacher' ? <TeacherGradesView profile={profile} /> : <SubmitGrades adminProfile={profile} />) : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'courses': return isAdmin ? <CourseManagementPage profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'attendance': return isAdmin && profile ? <AttendanceTracker profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
+      // Class Management tabs; the old page ids open their tab (tabs a role can't use aren't shown).
+      case 'classes': case 'grades': case 'courses': case 'attendance': case 'upload_files':
+        return hasAdminView && profile
+          ? <ClassManagementPage profile={profile} tab={CLASS_TAB[activePage]} />
+          : <PermissionDeniedGate message="Staff Role Required" />;
       case 'billing': return isAdmin ? <AdminBillingPage /> : isStudent ? <StudentBillingPage receiptUploads={features.receiptUploads} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'messages': return isAdmin ? <OfficeMessages /> : isStudent && features.chat ? <StudentMessages /> : <StudentDashboard profile={profile} />;
       case 'announcements': return isAdmin ? <AnnouncementsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
@@ -184,8 +189,7 @@ export const App = () => {
         return isAdmin
           ? <SettingsPage tab={activePage === 'audit' ? 'audit' : activePage === 'settings/storage' ? 'storage' : 'general'} />
           : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'upload_files': return (isTeacher || isAdmin || isExecutive) && profile ? <CourseMaterialsPage profile={profile} /> : null;
-      case 'notes': return isStudent ? <StudentNotesPage /> : (isTeacher || isAdmin || isExecutive) && profile ? <CourseMaterialsPage profile={profile} /> : null;
+      case 'notes': return isStudent ? <StudentNotesPage /> : hasAdminView && profile ? <ClassManagementPage profile={profile} tab="materials" /> : null;
       default: return <StudentDashboard profile={profile} />;
     }
   };
@@ -220,15 +224,7 @@ export const App = () => {
             {hasAdminView && (
               <>
                 {!isTeacher && <SidebarItem icon={Users} label="Accounts" active={activePage === 'admin'} onClick={() => {setActivePage('admin'); setSidebarOpen(false)}} />}
-                {isAdmin && (
-                  <>
-                    <SidebarItem icon={Briefcase} label="Course" active={activePage === 'courses'} onClick={() => {setActivePage('courses'); setSidebarOpen(false)}} />
-                    <SidebarItem icon={CheckSquare} label="Attendance" active={activePage === 'attendance'} onClick={() => {setActivePage('attendance'); setSidebarOpen(false)}} />
-                  </>
-                )}
-                {(isExecutive || isTeacher || isAdmin) && <SidebarItem icon={CalendarIcon} label="Schedule" active={activePage === 'calendar'} onClick={() => {setActivePage('calendar'); setSidebarOpen(false)}} />}
-                <SidebarItem icon={Upload} label="Course Materials" active={activePage === 'upload_files' || activePage === 'notes'} onClick={() => {setActivePage('upload_files'); setSidebarOpen(false)}} />
-                <SidebarItem icon={GraduationCap} label={isTeacher ? "Grades" : "Records"} active={activePage === 'grades'} onClick={() => {setActivePage('grades'); setSidebarOpen(false)}} />
+                <SidebarItem icon={Briefcase} label="Class Management" active={CLASS_PAGES.includes(activePage)} onClick={() => {setActivePage('classes'); setSidebarOpen(false)}} />
                 {isAdmin && (
                   <>
                     <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />
