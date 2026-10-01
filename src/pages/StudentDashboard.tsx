@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { ActsLogo } from '../components/ActsLogo';
+import { AnnouncementsFeed } from '../components/AnnouncementsFeed';
 import { ConfirmModal } from '../components/modals/ConfirmModal';
 import { deleteFile, downloadMaterial, fetchFiles, setFileArchived } from '../lib/data';
 import { live } from '../lib/live';
@@ -26,6 +27,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
         <ActsLogo className="w-32 h-32 mb-6 animate-pulse" />
         <h2 className="text-4xl md:text-5xl font-black text-fb-textPrimary tracking-tighter italic uppercase leading-none">Welcome to the <br />ACTS Portal</h2>
         <p className="text-fb-textSecondary font-semibold text-lg max-w-xl leading-relaxed mt-4">Signed in as: <span className="text-fb-blue">{formatName(profile)} ({profile?.role})</span></p>
+        <div className="w-full max-w-3xl pt-4"><AnnouncementsFeed /></div>
       </div>
     );
   }
@@ -144,6 +146,7 @@ export const StudentDashboard = ({ profile }: { profile: UserProfile | null }) =
 
   return (
     <div className="space-y-8 pb-10 animate-in fade-in duration-500">
+      <AnnouncementsFeed />
       {/* Hero Welcome Card */}
       <div className="p-8 md:p-10 rounded-[2.5rem] bg-gradient-to-br from-fb-blue via-blue-600 to-indigo-700 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-6">
         <div className="space-y-3 max-w-xl text-center md:text-left z-10">

@@ -1,17 +1,72 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Card } from '../components/Card';
-import { fetchFeatureSettings, updateFeatures, type Features, type SettingInfo } from '../lib/settings';
+import {
+  fetchAlertSettings, fetchFeatureSettings, updateAlertSettings, updateFeatures,
+  type AttendanceAlerts, type Features, type SettingInfo,
+} from '../lib/settings';
 
 const SWITCHES: { key: keyof Features; label: string; description: string; available: boolean }[] = [
   { key: 'studentSchedule', label: 'Student schedule', description: 'Students see the Schedule page with their class calendar.', available: true },
-  { key: 'announcements', label: 'Announcements', description: 'Announcements are shown and can be posted.', available: false },
+  { key: 'announcements', label: 'Announcements', description: 'Announcements are shown on dashboards and admins can post them.', available: true },
   { key: 'chat', label: 'Chat with the school office', description: 'Students can send messages to admins. Turn off during exams.', available: false },
   { key: 'receiptUploads', label: 'Payment receipt uploads', description: 'Students can upload proof of payment for review.', available: false },
 ];
 
 const formatWhen = (iso: string) => new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+const AlertSettings = () => {
+  const [saved, setSaved] = useState<AttendanceAlerts | null>(null);
+  const [form, setForm] = useState<AttendanceAlerts | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetchAlertSettings().then((r) => { setSaved(r.value); setForm(r.value); }).catch((e) => setMessage({ ok: false, text: e.message })); }, []);
+
+  if (!form || !saved) return null;
+  const changed = (Object.keys(form) as (keyof AttendanceAlerts)[]).filter((k) => form[k] !== saved[k]);
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setMessage(null);
+    try {
+      const r = await updateAlertSettings(Object.fromEntries(changed.map((k) => [k, form[k]])));
+      setSaved(r.value); setForm(r.value); setMessage({ ok: true, text: 'Saved.' });
+    } catch (err) { setMessage({ ok: false, text: (err as Error).message }); }
+    finally { setSaving(false); }
+  };
+  const num = 'w-20 bg-white border-2 border-fb-gray rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-fb-blue tabular-nums';
+
+  return (
+    <Card title="Absence alerts">
+      <form onSubmit={save} className="space-y-4">
+        <p className="text-sm text-fb-textSecondary">When a student reaches these numbers of absences in one course, the student, the course's teacher and every admin get a notification. Each alert is sent once.</p>
+        <div className="flex flex-wrap gap-6">
+          <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
+            <input type="number" className={num} min={1} max={50} required value={form.warnAt} onChange={(e) => setForm({ ...form, warnAt: Number(e.target.value) })} />
+            Warning at
+          </label>
+          <label className="flex items-center gap-3 text-sm font-bold text-fb-textPrimary">
+            <input type="number" className={num} min={1} max={50} required value={form.escalateAt} onChange={(e) => setForm({ ...form, escalateAt: Number(e.target.value) })} />
+            Escalation at
+          </label>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-semibold text-fb-textPrimary">
+          <input type="checkbox" className="accent-fb-blue w-4 h-4" checked={form.countExcused} onChange={(e) => setForm({ ...form, countExcused: e.target.checked })} />
+          Count excused absences too
+        </label>
+        <label className="flex items-center gap-2 text-sm font-semibold text-fb-textPrimary">
+          <input type="checkbox" className="accent-fb-blue w-4 h-4" checked={form.countLate} onChange={(e) => setForm({ ...form, countLate: e.target.checked })} />
+          Count "late" as an absence
+        </label>
+        {message && <p role={message.ok ? 'status' : 'alert'} className={`text-sm font-bold ${message.ok ? 'text-emerald-700' : 'text-red-700'}`}>{message.text}</p>}
+        <button type="submit" disabled={saving || changed.length === 0} className="px-5 py-2.5 bg-fb-blue text-white rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-40">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </form>
+    </Card>
+  );
+};
 
 export const SettingsPage = () => {
   const [info, setInfo] = useState<SettingInfo<Features> | null>(null);
@@ -70,6 +125,7 @@ export const SettingsPage = () => {
           </ul>
         )}
       </Card>
+      <AlertSettings />
       {info?.updatedAt && (
         <p className="text-xs text-fb-textSecondary">Last changed {formatWhen(info.updatedAt)}{info.updatedBy ? ` by ${info.updatedBy}` : ''}. Every change is recorded in the Audit Log.</p>
       )}

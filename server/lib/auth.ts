@@ -37,7 +37,7 @@ export type Permission =
   | "users:read" | "users:write" | "users:admin"
   | "grades:write_own_offerings" | "grades:write_any"
   | "attendance:write" | "offerings:write" | "materials:write_own"
-  | "transcripts:issue" | "settings:write" | "audit:read";
+  | "transcripts:issue" | "settings:write" | "audit:read" | "announcements:write";
 
 const PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: [],
@@ -46,7 +46,7 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
   vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write"],
   admin: ["users:read", "users:write", "users:admin", "grades:write_own_offerings", "grades:write_any",
           "attendance:write", "offerings:write", "materials:write_own", "transcripts:issue",
-          "settings:write", "audit:read"],
+          "settings:write", "audit:read", "announcements:write"],
 };
 
 /** Firebase Admin Auth for this API (account creation, email changes, deletion). */

@@ -1,4 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import announcement from "./announcements/[id].js";
+import announcementRead from "./announcements/[id]/read.js";
+import announcements from "./announcements/index.js";
 import attendance from "./attendance/index.js";
 import audit from "./audit/index.js";
 import gradesBulk from "./grades/bulk.js";
@@ -11,6 +14,8 @@ import me from "./me.js";
 import meSession from "./me-session.js";
 import offering from "./offerings/[id].js";
 import offeringRestore from "./offerings/[id]/restore.js";
+import notifications from "./notifications/index.js";
+import notificationsRead from "./notifications/read.js";
 import offerings from "./offerings/index.js";
 import setting from "./settings/[key].js";
 import settingsPublic from "./settings/public.js";
@@ -60,6 +65,11 @@ const ROUTES: [pattern: string, handler: Handler][] = [
   ["settings/public", settingsPublic],
   ["settings/:key", setting],
   ["audit", audit],
+  ["notifications", notifications],
+  ["notifications/read", notificationsRead],
+  ["announcements", announcements],
+  ["announcements/:id", announcement],
+  ["announcements/:id/read", announcementRead],
 ];
 
 /** Finds the handler for a path like "users/abc/history", preferring static segments. */

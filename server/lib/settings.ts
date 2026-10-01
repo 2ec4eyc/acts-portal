@@ -18,7 +18,22 @@ export const Features = z.object({
 });
 export type Features = z.infer<typeof Features>;
 
-const SETTINGS = { features: Features } as const;
+/** When students, their teachers and admins are alerted about absences in a course. */
+export const AttendanceAlerts = z.object({
+  warnAt: z.number().int().min(1).max(50).default(2),
+  escalateAt: z.number().int().min(1).max(50).default(3),
+  /** Count excused absences too. */
+  countExcused: z.boolean().default(false),
+  /** Count "late" as an absence. */
+  countLate: z.boolean().default(false),
+});
+
+const SETTINGS = { features: Features, attendanceAlerts: AttendanceAlerts } as const;
+
+/** Rules that involve more than one field, checked on the merged value before saving. */
+const CHECKS: { [K in keyof typeof SETTINGS]?: (value: z.infer<(typeof SETTINGS)[K]>) => string | null } = {
+  attendanceAlerts: (v) => (v.warnAt < v.escalateAt ? null : "warnAt must be lower than escalateAt"),
+};
 export type SettingKey = keyof typeof SETTINGS;
 export const isSettingKey = (key: string): key is SettingKey => Object.hasOwn(SETTINGS, key);
 
@@ -58,6 +73,8 @@ export async function updateSetting(db: DbOrTx, key: SettingKey, patch: unknown,
   if (!Object.keys(changes).length) throw new HttpError(400, "body: nothing to change");
   cache.delete(key);
   const value = { ...(await getSetting(db, key)), ...changes };
+  const problem = (CHECKS[key] as ((v: unknown) => string | null) | undefined)?.(value);
+  if (problem) throw new HttpError(400, problem);
   await db.insert(appSettings).values({ key, value, updatedBy: userId, updatedAt: new Date() })
     .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedBy: userId, updatedAt: new Date() } });
   cache.delete(key);

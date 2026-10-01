@@ -24,6 +24,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Issue and revoke official transcripts | | | | ✓ |
 | Read issued transcripts | own | ✓ | ✓ | ✓ |
 | Audit log, settings and feature switches | | | | ✓ |
+| Post and manage announcements | | | | ✓ |
 
 ## Endpoints
 
@@ -60,7 +61,15 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 
 | GET | `/api/audit?table=&actorId=&entityId=&from=&to=&before=&limit=` | Admins. Every change to grades, accounts, profiles, student records, courses, attendance, files, transcripts and settings, newest first: `{ entries: [{ id, at, actor, action, table, op, subject, changes: [{ field, from, to }] }], nextBefore }`. People appear by name. `from`/`to` are Manila dates. |
 | GET | `/api/settings/public` | **No auth.** `{ features: { chat, receiptUploads, announcements, studentSchedule } }`. CDN-cached for 60 s. |
-| GET, PATCH | `/api/settings/:key` | Admins. `features` today. PATCH changes only the fields sent; unknown fields are rejected. |
+| GET, PATCH | `/api/settings/:key` | Admins. `features`, `attendanceAlerts` (`warnAt`, `escalateAt`, `countExcused`, `countLate`). PATCH changes only the fields sent; unknown fields are rejected. |
+
+| GET | `/api/notifications[?unread=true]` | The caller's own notifications, newest first (30), plus `unread`. Attendance alerts for now. |
+| POST | `/api/notifications/read` | `{ ids }` or `{ all: true }`, for the caller's own notifications only. |
+| GET, POST | `/api/announcements[?manage=true]` | GET: what the caller should see now (published, not expired, for their role; batch/course narrow it for students and teachers), pinned first, with `read`. `manage=true` (admins): all, with `status` (`scheduled`/`live`/`expired`) and `readCount`. POST (admins): `{ title, body, audienceRoles, cohort?, offeringId?, pinned, publishAt?, expiresAt? }`. Empty, and posting refused, while the `announcements` switch is off. |
+| PATCH, DELETE | `/api/announcements/:id` | Admins. PATCH changes only the fields sent. |
+| POST | `/api/announcements/:id/read` | Marks one from the caller's feed as read. |
+
+**Absence alerts.** Saving attendance (`PUT /api/attendance`) checks the saved students in that course. When a student reaches the `attendanceAlerts` thresholds (default: warning at 2 unexcused absences, escalation at 3), the student, the course's teacher and every admin get a notification. Each threshold fires once per student per course, even if the day is saved again. Settings also control whether excused absences and lates count.
 
 **Every request that changes data runs in one database transaction.** Either all of it is saved or none of it, and the response is sent only after the change is saved. A database trigger records each change with the signed-in user, the time, and the before and after values. The audit log is append-only.
 

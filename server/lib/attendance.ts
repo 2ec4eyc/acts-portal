@@ -4,6 +4,7 @@ import type { DbOrTx } from "./academics.js";
 import type { Db } from "./db.js";
 import { HttpError } from "./http.js";
 import { syncEnrollments } from "./academics.js";
+import { checkAbsenceAlerts } from "./attendance-alerts.js";
 import {
   attendanceRecords, attendanceSessions, courseOfferings, courses, enrollments, studentRecords, users,
 } from "../db/schema.js";
@@ -96,5 +97,6 @@ export async function saveAttendance(db: Db, actorId: string, input: z.infer<typ
           set: { status: r.status, isExcused: r.isExcused, notes: r.notes },
         });
     }
+    await checkAbsenceAlerts(tx, input.offeringId, ids);
   });
 }

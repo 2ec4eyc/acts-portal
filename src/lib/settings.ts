@@ -38,3 +38,8 @@ export const fetchAudit = (f: AuditFilter = {}) =>
   api<{ entries: AuditEntry[]; nextBefore: number | null }>('audit', {
     query: { table: f.table, actorId: f.actorId, from: f.from, to: f.to, before: f.before ? String(f.before) : undefined },
   });
+
+export interface AttendanceAlerts { warnAt: number; escalateAt: number; countExcused: boolean; countLate: boolean }
+export const fetchAlertSettings = () => api<SettingInfo<AttendanceAlerts>>('settings/attendanceAlerts');
+export const updateAlertSettings = (changes: Partial<AttendanceAlerts>) =>
+  api<SettingInfo<AttendanceAlerts>>('settings/attendanceAlerts', { method: 'PATCH', body: changes });

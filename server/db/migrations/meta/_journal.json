@@ -43,6 +43,13 @@
       "when": 1790822800013,
       "tag": "0005_audit_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790824418896,
+      "tag": "0006_notifications_announcements",
+      "breakpoints": true
     }
   ]
 }

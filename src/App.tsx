@@ -13,11 +13,13 @@ import {
   LogOut,
   Upload,
   History,
+  Megaphone,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 
 import { ActsLogo } from './components/ActsLogo';
+import { NotificationBell } from './components/NotificationBell';
 import { PermissionDeniedGate } from './components/PermissionDeniedGate';
 import { SidebarItem } from './components/SidebarItem';
 import { ApiError, claimSession, hasSession, releaseSession, setSessionReplacedHandler } from './lib/api';
@@ -26,6 +28,7 @@ import { auth } from './lib/firebase';
 import { live } from './lib/live';
 import { DEFAULT_FEATURES, fetchPublicSettings, type Features } from './lib/settings';
 import { AdminPanel } from './pages/AdminPanel';
+import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AttendanceTracker } from './pages/AttendanceTracker';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { CourseManagementPage } from './pages/CourseManagementPage';
@@ -159,6 +162,7 @@ export const App = () => {
       case 'grades': return hasAdminView && profile ? (profile.role === 'teacher' ? <TeacherGradesView profile={profile} /> : <SubmitGrades adminProfile={profile} />) : <PermissionDeniedGate message="Admin Role Required" />;
       case 'courses': return isAdmin ? <CourseManagementPage profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'attendance': return isAdmin && profile ? <AttendanceTracker profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
+      case 'announcements': return isAdmin ? <AnnouncementsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'audit': return isAdmin ? <AuditLogPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'settings': return isAdmin ? <SettingsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       case 'upload_files': return isTeacher && profile ? <TeacherUploadFilesView profile={profile} /> : null;
@@ -204,6 +208,7 @@ export const App = () => {
                 <SidebarItem icon={GraduationCap} label={isTeacher ? "Grades" : "Records"} active={activePage === 'grades'} onClick={() => {setActivePage('grades'); setSidebarOpen(false)}} />
                 {isAdmin && (
                   <>
+                    {features.announcements && <SidebarItem icon={Megaphone} label="Announcements" active={activePage === 'announcements'} onClick={() => {setActivePage('announcements'); setSidebarOpen(false)}} />}
                     <SidebarItem icon={History} label="Audit Log" active={activePage === 'audit'} onClick={() => {setActivePage('audit'); setSidebarOpen(false)}} />
                     <SidebarItem icon={SettingsIcon} label="Settings" active={activePage === 'settings'} onClick={() => {setActivePage('settings'); setSidebarOpen(false)}} />
                   </>
@@ -217,9 +222,10 @@ export const App = () => {
         </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-20 flex items-center px-6 border-b bg-white lg:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-fb-gray rounded-xl"><Menu size={26} /></button>
-          <h1 className="ml-4 text-xl font-black italic uppercase text-fb-blue">Acts</h1>
+        <header className="h-16 lg:h-14 shrink-0 flex items-center px-4 md:px-6 lg:px-10 border-b bg-white">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="p-2 hover:bg-fb-gray rounded-xl lg:hidden"><Menu size={26} /></button>
+          <h1 className="ml-3 text-xl font-black italic uppercase text-fb-blue lg:hidden">Acts</h1>
+          <div className="ml-auto"><NotificationBell onOpenLink={(page) => setActivePage(page)} /></div>
         </header>
         <div className="flex-1 p-6 md:p-10 overflow-y-auto custom-scrollbar">
           <div className="max-w-6xl mx-auto">{renderContent()}</div>
