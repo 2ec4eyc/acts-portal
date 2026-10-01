@@ -18,7 +18,11 @@ export const AuditQuery = z.object({
 });
 
 type Row = Record<string, unknown> | null;
+/** Columns that hold a user id; the API shows the person's name instead. */
+const PERSON_FIELDS = new Set(["recorded_by", "instructor_id", "updated_by", "deleted_by", "uploaded_by", "issued_by", "revoked_by", "student_id", "user_id"]);
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+const SETTING_NAMES: Record<string, string> = { features: "Feature switches" };
 
 /** Fields that differ between the old and new row (all of them for an add or a removal). */
 function changes(oldRow: Row, newRow: Row) {
@@ -47,6 +51,9 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
   const courseIds = new Set<string>();
   for (const r of page) {
     if (r.actorId) userIds.add(r.actorId);
+    for (const row of [r.old, r.new] as Row[]) {
+      for (const f of PERSON_FIELDS) if (str(row?.[f])) userIds.add(str(row?.[f])!);
+    }
     const row = (r.new ?? r.old) as Row;
     const t = r.tableName;
     if (t === "users" || t === "user_profiles" || t === "student_records" || t === "attendance_records") userIds.add(r.entityId);
@@ -96,10 +103,12 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
       case "course_offerings": return courseNames.get(str(row?.course_id) ?? "") ?? "Course";
       case "transcripts": return `${people.get(str(row?.student_id) ?? "")?.name ?? "Student"} · ${str(row?.code) ?? ""}`;
       case "materials": return str(row?.file_name) ?? "File";
-      case "app_settings": return r.entityId;
+      case "app_settings": return SETTING_NAMES[r.entityId] ?? r.entityId;
       default: return r.entityId;
     }
   };
+
+  const personName = (v: unknown) => (typeof v === "string" ? people.get(v)?.name ?? "Deleted account" : v);
 
   return {
     entries: page.map((r) => ({
@@ -114,7 +123,11 @@ export async function listAudit(db: DbOrTx, q: z.infer<typeof AuditQuery>) {
         ? { id: r.actorId, ...(people.get(r.actorId) ?? { name: "Deleted account", email: null }) }
         : null,
       source: (r.data as { source?: string } | null)?.source ?? null,
-      changes: r.tableName ? changes(r.old as Row, r.new as Row) : [],
+      changes: r.tableName
+        ? changes(r.old as Row, r.new as Row).map((c) => PERSON_FIELDS.has(c.field)
+          ? { ...c, from: personName(c.from), to: personName(c.to) }
+          : c)
+        : [],
       data: r.tableName ? null : r.data,
     })),
     nextBefore: rows.length > q.limit ? page[page.length - 1].id : null,

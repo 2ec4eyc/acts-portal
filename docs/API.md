@@ -23,6 +23,7 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | Upload files to own courses | | ✓ | | ✓ (any course) |
 | Issue and revoke official transcripts | | | | ✓ |
 | Read issued transcripts | own | ✓ | ✓ | ✓ |
+| Audit log, settings and feature switches | | | | ✓ |
 
 ## Endpoints
 
@@ -56,6 +57,12 @@ The caller's role always comes from the database. Errors are JSON `{ "error": ".
 | GET | `/api/transcripts/:id` | One issued transcript with its frozen `content`. |
 | POST | `/api/transcripts/:id/revoke` | `{ reason }`. The transcript is kept; verification then reports it as revoked. Admins. |
 | GET | `/api/verify/:code` | **No auth.** `{ status: valid\|revoked, school, studentName, studentNo, issuedAt, issuedBy, revokedAt }`, never grades; 404 for unknown codes. Behind the QR code on the PDF (`/verify/<code>` page). |
+
+| GET | `/api/audit?table=&actorId=&entityId=&from=&to=&before=&limit=` | Admins. Every change to grades, accounts, profiles, student records, courses, attendance, files, transcripts and settings, newest first: `{ entries: [{ id, at, actor, action, table, op, subject, changes: [{ field, from, to }] }], nextBefore }`. People appear by name. `from`/`to` are Manila dates. |
+| GET | `/api/settings/public` | **No auth.** `{ features: { chat, receiptUploads, announcements, studentSchedule } }`. CDN-cached for 60 s. |
+| GET, PATCH | `/api/settings/:key` | Admins. `features` today. PATCH changes only the fields sent; unknown fields are rejected. |
+
+**Every request that changes data runs in one database transaction.** Either all of it is saved or none of it, and the response is sent only after the change is saved. A database trigger records each change with the signed-in user, the time, and the before and after values. The audit log is append-only.
 
 Course offerings carry `units` (0.5–99 in steps of 0.5, default 3). A student with issued transcripts can't be deleted.
 

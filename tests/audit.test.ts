@@ -34,6 +34,8 @@ describe("automatic audit trail", () => {
     const value = entry.changes.find((c: { field: string }) => c.field === "value");
     assert.deepEqual([Number(value.from), Number(value.to)], [91, 88]);
     assert.ok(!entry.changes.some((c: { field: string }) => c.field === "updated_at"), "timestamps aren't noise");
+    const recordedBy = entry.changes.find((c: { field: string }) => c.field === "recorded_by");
+    assert.equal(recordedBy.to, "Ada Admin", "people are shown by name, not id");
   });
 
   test("a teacher's grade is recorded as the teacher", async () => {
