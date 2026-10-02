@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DbOrTx } from "./academics.js";
+import { can, type User } from "./auth.js";
 import { courseId, termId } from "./academics.js";
 import { auditLog, courseOfferings, courses, enrollments, offeringMeetings, schoolYears, terms, users } from "../db/schema.js";
 import { HttpError } from "./http.js";
@@ -295,4 +296,31 @@ export async function teacherStudents(db: DbOrTx, teacherId: string) {
     });
   }
   return [...byStudent.values()];
+}
+
+/** True if the student is enrolled (not dropped) in a non-archived course this teacher teaches. */
+export async function teachesStudent(db: DbOrTx, teacherId: string, studentId: string) {
+  const [row] = (await db.execute(sql`
+    SELECT 1 FROM enrollments e JOIN course_offerings o ON o.id = e.offering_id
+    WHERE e.student_id = ${studentId} AND e.status <> 'dropped' AND o.instructor_id = ${teacherId} AND o.deleted_at IS NULL
+    LIMIT 1`)).rows;
+  return !!row;
+}
+
+/** Office staff (users:read) may read any student; a teacher only their own students. */
+export async function assertTeachesStudent(db: DbOrTx, user: User, studentId: string) {
+  if (can(user, "users:read")) return;
+  if (can(user, "students:read_own") && await teachesStudent(db, user.id, studentId)) return;
+  throw new HttpError(403, "You can only view your own students");
+}
+
+/** Office staff may read any course's records; a teacher only their own (non-archived) courses. */
+export async function assertTeachesOffering(db: DbOrTx, user: User, offeringId: string) {
+  if (can(user, "users:read")) return;
+  if (can(user, "students:read_own")) {
+    const [o] = await db.select({ instructorId: courseOfferings.instructorId, deletedAt: courseOfferings.deletedAt })
+      .from(courseOfferings).where(eq(courseOfferings.id, offeringId));
+    if (o && o.instructorId === user.id && !o.deletedAt) return;
+  }
+  throw new HttpError(403, "You can only view your own courses");
 }

@@ -216,7 +216,8 @@ export async function cleanUpRecords(db: Db, studentIds: string[], actorId: stri
 }
 
 /** Grade changes and legacy edit-history entries for a student, newest first. */
-export async function history(db: DbOrTx, userId: string) {
+/** A student's grade changes and legacy edit history; `instructorId` keeps only that teacher's courses. */
+export async function history(db: DbOrTx, userId: string, instructorId?: string) {
   const changes = await db
     .select({
       id: gradeChanges.id, at: gradeChanges.changedAt, courseName: courses.name,
@@ -228,9 +229,10 @@ export async function history(db: DbOrTx, userId: string) {
     .innerJoin(courseOfferings, eq(courseOfferings.id, enrollments.offeringId))
     .innerJoin(courses, eq(courses.id, courseOfferings.courseId))
     .leftJoin(users, eq(users.id, gradeChanges.changedBy))
-    .where(eq(enrollments.studentId, userId))
+    .where(and(eq(enrollments.studentId, userId), instructorId ? eq(courseOfferings.instructorId, instructorId) : undefined))
     .orderBy(desc(gradeChanges.changedAt));
-  const legacy = await db.select().from(auditLog)
+  // Legacy history spans every course, so only office staff see it.
+  const legacy = instructorId ? [] : await db.select().from(auditLog)
     .where(and(eq(auditLog.entity, "user"), eq(auditLog.entityId, userId), eq(auditLog.action, "legacy.edit_history")))
     .orderBy(desc(auditLog.at));
 

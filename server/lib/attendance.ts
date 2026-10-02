@@ -50,7 +50,7 @@ export async function roster(db: DbOrTx, offeringId: string, date: string) {
 }
 
 /** All records, for one offering (every date) or one student (every offering). */
-export async function listAttendance(db: DbOrTx, filter: { offeringId?: string; studentId?: string }) {
+export async function listAttendance(db: DbOrTx, filter: { offeringId?: string; studentId?: string; instructorId?: string }) {
   return db
     .select({
       offeringId: attendanceSessions.offeringId, courseName: courses.name, date: attendanceSessions.heldOn,
@@ -64,6 +64,7 @@ export async function listAttendance(db: DbOrTx, filter: { offeringId?: string; 
     .where(and(
       filter.offeringId ? eq(attendanceSessions.offeringId, filter.offeringId) : undefined,
       filter.studentId ? eq(attendanceRecords.studentId, filter.studentId) : undefined,
+      filter.instructorId ? eq(courseOfferings.instructorId, filter.instructorId) : undefined,
     ))
     .orderBy(asc(attendanceSessions.heldOn), asc(courses.name));
 }

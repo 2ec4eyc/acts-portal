@@ -135,7 +135,7 @@ function select(db: DbOrTx, withContent: boolean) {
     .leftJoin(revoker, eq(revoker.id, transcripts.revokedBy));
 }
 
-/** Staff can read any student's transcripts; a student only their own. */
+/** Office staff can read any student's transcripts; a student only their own (teachers can't). */
 function assertCanRead(user: User, studentId: string) {
   if (user.id !== studentId && !can(user, "users:read")) throw new HttpError(403, "Forbidden");
 }

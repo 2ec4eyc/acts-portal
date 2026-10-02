@@ -1,10 +1,12 @@
 import { can, requireUser } from "../../lib/auth.js";
 import { db } from "../../lib/db.js";
 import { HttpError, methods, queryParam, uuidParam } from "../../lib/http.js";
+import { assertTeachesStudent } from "../../lib/offerings.js";
 import { listProfilesWithGrades, loadProfile } from "../../lib/profiles.js";
 import { AccountUpdate, deleteAccount, getUserRow, updateAccount } from "../../lib/users.js";
 
-// GET    /api/users/:id[?include=grades]: one account (staff, or the user themself).
+// GET    /api/users/:id[?include=grades]: one account (office staff, the user themself, or a teacher for a
+//        student in their own courses; a teacher sees only grades from their own courses).
 // PATCH  /api/users/:id: edit an account. Executives may edit student accounts; staff accounts,
 //        roles, emails and staff categories need an admin.
 // DELETE /api/users/:id: permanently delete an archived account (admins only).
@@ -12,9 +14,10 @@ export default methods({
   GET: async (req, res) => {
     const user = await requireUser(req);
     const id = uuidParam(req);
-    if (id !== user.id && !can(user, "users:read")) throw new HttpError(403, "Forbidden");
+    if (id !== user.id) await assertTeachesStudent(db, user, id);
+    const ownCoursesOnly = id !== user.id && !can(user, "users:read");
     const profile = queryParam(req, "include") === "grades"
-      ? (await listProfilesWithGrades(db, { ids: [id] }))[0]
+      ? (await listProfilesWithGrades(db, { ids: [id], instructorId: ownCoursesOnly ? user.id : undefined }))[0]
       : await loadProfile(db, id);
     if (!profile) throw new HttpError(404, "User not found");
     res.status(200).json(profile);
