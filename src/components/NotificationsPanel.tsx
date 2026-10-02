@@ -23,7 +23,7 @@ export const NotificationsPanel = ({ onOpenLink }: { onOpenLink: (page: string) 
   };
 
   return (
-    <section aria-labelledby="dash-notifications-title" className="bg-white rounded-2xl border border-fb-border shadow-sm text-left">
+    <section aria-labelledby="dash-notifications-title" className="h-full flex flex-col bg-white rounded-2xl border border-fb-border shadow-sm text-left">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-fb-border">
         <h2 id="dash-notifications-title" className="flex-1 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-fb-textPrimary">
           <Bell size={16} className="text-fb-blue" aria-hidden="true" /> Notifications
@@ -39,7 +39,7 @@ export const NotificationsPanel = ({ onOpenLink }: { onOpenLink: (page: string) 
       {items === null ? <p className="px-5 py-6 text-sm text-fb-textSecondary">Loading…</p>
         : items.length === 0 ? <p className="px-5 py-6 text-sm text-fb-textSecondary">You're all caught up.</p> : (
           <>
-            <ul className="divide-y divide-fb-border">
+            <ul className="flex-1 max-h-[28rem] overflow-y-auto overscroll-contain divide-y divide-fb-border">
               {shown.map((n) => (
                 <li key={n.id}>
                   <button type="button" onClick={() => open(n)} className={`w-full text-left px-5 py-3 flex gap-3 hover:bg-fb-hover/60 ${n.readAt ? '' : 'bg-fb-blue/5'}`}>

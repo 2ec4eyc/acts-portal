@@ -22,12 +22,12 @@ export const AnnouncementsFeed = ({ alwaysShow = false }: { alwaysShow?: boolean
   };
 
   return (
-    <section aria-labelledby="announcements-title" className="bg-white rounded-2xl border border-fb-border shadow-sm text-left">
+    <section aria-labelledby="announcements-title" className="h-full flex flex-col bg-white rounded-2xl border border-fb-border shadow-sm text-left">
       <h2 id="announcements-title" className="flex items-center gap-2 px-5 py-4 border-b border-fb-border text-sm font-black uppercase tracking-widest text-fb-textPrimary">
         <Megaphone size={16} className="text-fb-blue" aria-hidden="true" /> Announcements
       </h2>
       {(!items || items.length === 0) && <p className="px-5 py-6 text-sm text-fb-textSecondary">{items ? 'No announcements yet.' : 'Loading…'}</p>}
-      <ul className="divide-y divide-fb-border">
+      <ul className="flex-1 max-h-[28rem] overflow-y-auto overscroll-contain divide-y divide-fb-border">
         {(items ?? []).map((a) => {
           const open = openId === a.id;
           return (
