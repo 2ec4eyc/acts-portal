@@ -129,9 +129,9 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
-      <div className="bg-white rounded-[2.5rem] border border-fb-border shadow-sm overflow-hidden flex flex-col md:flex-row">
+      <div className="bg-white rounded-[2.5rem] border border-fb-border shadow-sm overflow-hidden flex flex-col lg:flex-row">
         {/* Left Sidebar Management */}
-        <div className="w-full md:w-80 md:shrink-0 bg-fb-blue p-10 flex flex-col items-center text-white">
+        <div className="w-full lg:w-80 lg:shrink-0 bg-fb-blue p-10 flex flex-col items-center text-white">
           <div className={`relative group mb-8 ${isEditing ? 'cursor-pointer' : 'cursor-default'}`} onClick={handlePhotoClick}>
             <div className="w-40 h-40 rounded-[2.5rem] bg-white/20 border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105">
               {formData.photoURL ? (
@@ -144,7 +144,7 @@ export const ProfilePage = ({ profile }: { profile: UserProfile | null }) => {
               <div className="absolute inset-0 bg-black/40 opacity-100 flex flex-col items-center justify-center rounded-[2.5rem] transition-all text-center p-4">
                 <Camera className="text-white mb-2" size={28} />
                 <span className="text-[10px] font-black uppercase tracking-widest">Upload New Photo</span>
-                <span className="text-[8px] opacity-60 uppercase mt-1">1:1 Ratio Required</span>
+                <span className="text-[9px] opacity-60 uppercase mt-1">1:1 Ratio Required</span>
               </div>
             )}
             <input type="file" ref={fileInputRef} onChange={handlePhotoChange} className="hidden" accept="image/*" />

@@ -57,6 +57,13 @@ export const App = () => {
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  // On phones the sidebar is a drawer: Escape closes it, like tapping outside.
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isSidebarOpen]);
   const [kickedOut, setKickedOut] = useState(false);
   const [features, setFeatures] = useState<Features>(DEFAULT_FEATURES);
   const [chatUnread, setChatUnread] = useState(0);
@@ -241,7 +248,7 @@ export const App = () => {
           </div>
         </div>
       </aside>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <header className="h-16 lg:h-14 shrink-0 flex items-center px-4 md:px-6 lg:px-10 border-b bg-white">
           <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="p-2 hover:bg-fb-gray rounded-xl lg:hidden"><Menu size={26} /></button>
           <h1 className="ml-3 text-xl font-black italic uppercase text-fb-blue lg:hidden">Acts</h1>

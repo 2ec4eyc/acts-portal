@@ -269,18 +269,18 @@ export const StudentDashboard = ({ profile, onNavigate, studentSchedule = true }
                       <span className="text-[10px] font-black text-fb-textSecondary/80 uppercase tracking-wider">{item.courseName}</span>
                       <h4 className="font-black text-fb-textPrimary capitalize italic tracking-tight text-lg leading-tight group-hover:text-fb-blue transition-colors">{item.fileName}</h4>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${item.category === 'exams' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${item.category === 'exams' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                       {item.category === 'exams' ? 'Exam' : 'Activity'}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 bg-white/50 p-3 rounded-xl border border-fb-border/40 text-xs font-bold text-fb-textSecondary">
                     <div>
-                      <span className="text-[8px] uppercase opacity-40 block">Instructor</span>
+                      <span className="text-[9px] uppercase opacity-40 block">Instructor</span>
                       <span className="truncate italic text-fb-textPrimary">{item.teacherName}</span>
                     </div>
                     <div>
-                      <span className="text-[8px] uppercase opacity-40 block">Submitted</span>
+                      <span className="text-[9px] uppercase opacity-40 block">Submitted</span>
                       <span className="truncate font-mono text-[10px] text-fb-textPrimary">{item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</span>
                     </div>
                   </div>
@@ -288,14 +288,14 @@ export const StudentDashboard = ({ profile, onNavigate, studentSchedule = true }
                   <div className="flex items-center gap-2 bg-fb-blue/5 border border-fb-blue/10 rounded-xl p-3 text-fb-blue">
                     <Clock size={16} className="shrink-0" />
                     <div className="text-xs">
-                      <p className="text-[8px] font-black uppercase tracking-widest opacity-60">Scheduled Date</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest opacity-60">Scheduled Date</p>
                       <p className="font-bold">{item.eventDate}{item.eventTime ? ` at ${item.eventTime}` : ''}</p>
                     </div>
                   </div>
 
                   {item.instructions && (
                     <div className="bg-white/60 p-3.5 rounded-xl border border-fb-border/40 text-xs font-semibold text-fb-textSecondary animate-in fade-in duration-200">
-                      <span className="text-[8px] font-black uppercase tracking-widest block text-fb-blue mb-1">Instructions / Notes</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest block text-fb-blue mb-1">Instructions / Notes</span>
                       <p className="italic whitespace-pre-wrap leading-relaxed">{item.instructions}</p>
                     </div>
                   )}

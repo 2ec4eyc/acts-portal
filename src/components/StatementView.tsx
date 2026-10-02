@@ -29,6 +29,16 @@ export interface StatementActions {
 export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: StatementActions }) => {
   const [showLedger, setShowLedger] = useState(false);
   const cell = 'px-3 py-2.5';
+  // Remind / Void buttons for an invoice (admins), shared by the table and the phone cards.
+  const invoiceActions = (i: Invoice) => {
+    const remind = i.state === 'issued' && i.balance > 0 && actions.onRemind;
+    const voidIt = i.state === 'issued' && i.paid === 0 && actions.onVoidInvoice;
+    if (!remind && !voidIt) return null;
+    return (<>
+      {remind && <button type="button" onClick={() => actions.onRemind!(i)} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Bell size={11} /> Remind</button>}
+      {voidIt && <button type="button" onClick={() => actions.onVoidInvoice!(i)} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[10px] font-black uppercase hover:bg-red-50"><Ban size={11} /> Void</button>}
+    </>);
+  };
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -40,8 +50,29 @@ export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: Sta
 
       <section className="bg-white rounded-2xl border border-fb-border overflow-hidden">
         <h3 className="px-4 py-3 border-b border-fb-border text-xs font-black uppercase tracking-widest text-fb-textPrimary">Invoices</h3>
-        {s.invoices.length === 0 ? <p className="p-4 text-sm text-fb-textSecondary">No invoices.</p> : (
-          <div className="overflow-x-auto">
+        {s.invoices.length === 0 ? <p className="p-4 text-sm text-fb-textSecondary">No invoices.</p> : (<>
+          {/* Phones: one card per invoice. */}
+          <ul className="md:hidden divide-y divide-fb-border">
+            {s.invoices.map((i) => (
+              <li key={i.id} className="p-4 space-y-2">
+                <div className="flex items-start gap-2">
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold">{i.number}</span>
+                    <span className="block text-xs text-fb-textSecondary break-words">{i.description}</span>
+                  </span>
+                  <StatusChip status={i.status} />
+                </div>
+                <dl className="grid grid-cols-3 gap-2 text-xs tabular-nums">
+                  <div><dt className="text-fb-textSecondary">Amount</dt><dd className="font-bold">{formatPeso(i.amount)}</dd></div>
+                  <div><dt className="text-fb-textSecondary">Paid</dt><dd className="font-bold">{formatPeso(i.paid)}</dd></div>
+                  <div><dt className="text-fb-textSecondary">Balance</dt><dd className="font-black">{formatPeso(i.state === 'void' ? 0 : i.balance)}</dd></div>
+                </dl>
+                <p className="text-xs text-fb-textSecondary">Due {formatDay(i.dueOn)}</p>
+                {invoiceActions(i) && <div className="flex flex-wrap gap-2">{invoiceActions(i)}</div>}
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary bg-fb-gray/40">
                 <tr><th scope="col" className={`${cell} text-left`}>Invoice</th><th scope="col" className={`${cell} text-left`}>Due</th>
@@ -59,21 +90,14 @@ export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: Sta
                     <td className={`${cell} text-right tabular-nums font-bold`}>{formatPeso(i.state === 'void' ? 0 : i.balance)}</td>
                     <td className={cell}><StatusChip status={i.status} /></td>
                     {(actions.onRemind || actions.onVoidInvoice) && (
-                      <td className={`${cell} text-right whitespace-nowrap`}>
-                        {i.state === 'issued' && i.balance > 0 && actions.onRemind && (
-                          <button type="button" onClick={() => actions.onRemind!(i)} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Bell size={11} /> Remind</button>
-                        )}
-                        {i.state === 'issued' && i.paid === 0 && actions.onVoidInvoice && (
-                          <button type="button" onClick={() => actions.onVoidInvoice!(i)} className="ml-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 text-red-700 text-[10px] font-black uppercase hover:bg-red-50"><Ban size={11} /> Void</button>
-                        )}
-                      </td>
+                      <td className={`${cell} text-right whitespace-nowrap space-x-1`}>{invoiceActions(i)}</td>
                     )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
+        </>)}
       </section>
 
       <section className="bg-white rounded-2xl border border-fb-border overflow-hidden">
@@ -120,8 +144,22 @@ export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: Sta
           className="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-widest text-fb-textPrimary hover:bg-fb-hover">
           Statement of account {showLedger ? '▴' : '▾'}
         </button>
-        {showLedger && (s.ledger.length === 0 ? <p className="px-4 pb-4 text-sm text-fb-textSecondary">Nothing yet.</p> : (
-          <div className="overflow-x-auto border-t border-fb-border">
+        {showLedger && (s.ledger.length === 0 ? <p className="px-4 pb-4 text-sm text-fb-textSecondary">Nothing yet.</p> : (<>
+          <ul className="md:hidden divide-y divide-fb-border border-t border-fb-border tabular-nums">
+            {s.ledger.map((l) => (
+              <li key={`${l.kind}-${l.refId}`} className="px-4 py-3 flex gap-3 text-sm">
+                <span className="flex-1 min-w-0">
+                  <span className="block break-words">{l.description}</span>
+                  <span className="block text-xs text-fb-textSecondary">{formatDay(l.date)}</span>
+                </span>
+                <span className="text-right shrink-0">
+                  <span className={`block ${l.credit ? 'text-emerald-700' : ''}`}>{l.debit ? formatPeso(l.debit) : `− ${formatPeso(l.credit)}`}</span>
+                  <span className="block text-xs font-bold">Balance {formatPeso(l.balance)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto border-t border-fb-border">
             <table className="w-full text-sm min-w-[560px]">
               <thead className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary bg-fb-gray/40">
                 <tr><th scope="col" className={`${cell} text-left`}>Date</th><th scope="col" className={`${cell} text-left`}>Entry</th>
@@ -141,7 +179,7 @@ export const StatementView = ({ s, actions = {} }: { s: Statement; actions?: Sta
               </tbody>
             </table>
           </div>
-        ))}
+        </>))}
       </section>
     </div>
   );

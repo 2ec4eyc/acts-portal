@@ -26,3 +26,17 @@ body {
 .active-sidebar-item svg {
   color: #1877F2 !important;
 }
+
+/* Phones and touch screens: controls are at least 36 px so they're easy to tap. Buttons inside a
+   sentence (a link-style button in a paragraph) keep their size so the line doesn't jump. */
+@media (max-width: 767px), (pointer: coarse) {
+  button:not(p button):not(span button):not([role="switch"]),
+  [role="tab"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]) {
+    min-height: 36px;
+  }
+  button:not(p button):not(span button):not([role="switch"]) {
+    min-width: 36px;
+  }
+}
