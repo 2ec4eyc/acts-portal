@@ -33,6 +33,8 @@ export interface Receipt {
   fileDeletedAt: string | null;
 }
 export interface Statement {
+  /** School name and when the statement was put together (for the PDF). */
+  school: string; generatedAt: string;
   student: { id: string; name: string; studentNo: string | null };
   totals: { charged: number; paid: number; balance: number; outstanding: number; credit: number };
   invoices: Invoice[]; payments: Payment[]; receipts: Receipt[];
