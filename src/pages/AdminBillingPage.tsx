@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { AlertCircle, Check, Eye, FileText, Pencil, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
 
 import { Card } from '../components/Card';
+import { StatementPdfButton } from '../components/StatementPdfButton';
 import { StatementView, StatusChip } from '../components/StatementView';
 import {
   createInvoices, createTemplate, deleteTemplate, fetchTemplates, updateTemplate, fetchReceipts, fetchStatement, fetchStudentBalances, formatDay, formatPeso, METHOD_LABELS, openReceipt,
@@ -106,6 +107,7 @@ const StudentModal = ({ studentId, onClose }: { studentId: string; onClose: () =
             <h2 id="statement-title" className="text-lg font-black text-fb-textPrimary truncate">{s?.student.name ?? 'Statement'}</h2>
             <p className="text-xs text-fb-textSecondary">{s?.student.studentNo ?? ''}</p>
           </div>
+          <span className="hidden sm:inline-flex"><StatementPdfButton s={s} /></span>
           <button type="button" onClick={onClose} aria-label="Close" className="p-2 rounded-full border border-fb-border bg-white hover:bg-fb-hover"><X size={18} /></button>
         </div>
         <div className="p-4 md:p-6 space-y-4">
@@ -113,6 +115,7 @@ const StudentModal = ({ studentId, onClose }: { studentId: string; onClose: () =
           {notice && <p role="status" className="text-sm font-bold text-emerald-700">{notice}</p>}
           {!s ? <p className="text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p> : (
             <>
+              <div className="sm:hidden"><StatementPdfButton s={s} /></div>
               <PaymentForm s={s} onDone={setNotice} />
               <StatementView s={s} actions={{
                 onRemind: (inv) => { setError(''); remindInvoice(inv.id).then(() => setNotice(`Reminder sent for ${inv.number}.`), (e) => setError(e.message)); },

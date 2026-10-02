@@ -68,6 +68,23 @@ describe("invoices and payments", () => {
     assert.deepEqual(s.payments[0].appliedTo, [{ number: s.invoices[0].number, amount: 2000 }]);
   });
 
+  test("the statement carries each invoice's charges and the school name, for the PDF", async () => {
+    const s = await statementOf(f.ids.student);
+    assert.equal(s.school, "ACTS Bible School");
+    assert.ok(!Number.isNaN(Date.parse(s.generatedAt)));
+    assert.deepEqual(s.invoices[0].lines, [{ description: "Tuition", amount: 5000 }, { description: "Books", amount: 750.5 }]);
+  });
+
+  test("a payment taken at the office tells the student and points to the statement", async () => {
+    const latest = async () => (await f.pool.query(
+      "SELECT kind, link, title, body FROM notifications WHERE user_id = $1 ORDER BY id DESC LIMIT 1", [f.ids.student])).rows[0];
+    const before = (await f.pool.query("SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND kind = 'payment_recorded'", [f.ids.student])).rows[0].n;
+    assert.equal(before, 1, "the 2,000 payment above was recorded at the office");
+    const n = await latest();
+    assert.deepEqual([n.kind, n.link, n.title], ["payment_recorded", "billing", "Payment recorded"]);
+    assert.match(n.body, /₱2,000\.00 on \d{4}-\d{2}-\d{2} \(cash\) was recorded\. Download your updated statement of account from Billing\./);
+  });
+
   test("students see only their own statement", async () => {
     const own = await call(h["me/finance"], { token: f.tokens.student });
     assert.equal(own.status, 200);
@@ -160,6 +177,7 @@ describe("receipts", () => {
     assert.equal(s.receipts[0].reviewedBy, "Ada Admin");
     const bell = (await call(h["notifications/index"], { token: f.tokens.student })).body;
     assert.equal(bell.items[0].title, "Payment confirmed");
+    assert.match(bell.items[0].body, /Download your updated statement of account from Billing\./);
     assert.equal((await call(h["finance/receipts/[id]/review"], { method: "POST", token: f.tokens.admin, query: { id: receiptId }, body: { decision: "approve" } })).status, 409);
   });
 

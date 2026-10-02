@@ -92,6 +92,13 @@
       "when": 1790869764199,
       "tag": "0012_billing_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790916137501,
+      "tag": "0013_payment_recorded",
+      "breakpoints": true
     }
   ]
 }

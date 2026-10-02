@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AlertCircle, RefreshCw, Upload } from 'lucide-react';
 
 import { Card } from '../components/Card';
+import { StatementPdfButton } from '../components/StatementPdfButton';
 import { StatementView } from '../components/StatementView';
 import {
   fetchMyStatement, formatPeso, METHOD_LABELS, prepareReceiptFile, today, uploadReceipt,
@@ -90,9 +91,12 @@ export const StudentBillingPage = ({ receiptUploads }: { receiptUploads: boolean
 
   return (
     <div className="space-y-6 pb-10">
-      <div>
-        <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Billing</h1>
-        <p className="text-sm text-fb-textSecondary">Your invoices, payments and balance.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Billing</h1>
+          <p className="text-sm text-fb-textSecondary">Your invoices, payments and balance.</p>
+        </div>
+        <StatementPdfButton s={s} />
       </div>
       {error && <p role="alert" className="text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={16} /> {error}</p>}
       {!s && !error && <p className="text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p>}

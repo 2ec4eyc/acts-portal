@@ -7,6 +7,7 @@ import { HttpError } from "./http.js";
 import { notify, type NewNotification } from "./notifications.js";
 import { assertRoom, checkAlerts } from "./receipt-storage.js";
 import { getSetting } from "./settings.js";
+import { SCHOOL_NAME } from "./transcripts.js";
 import { MAX_RECEIPT_BYTES, RECEIPT_TYPES, r2DownloadUrl, r2ObjectSize, r2UploadUrl, storageMode } from "./storage.js";
 import {
   billingTemplates, invoiceLines, invoices, paymentAllocations, paymentMethod, paymentReminders, payments, receiptFiles, receiptUploads,
@@ -253,6 +254,22 @@ export async function recordPayment(db: DbOrTx, user: User, input: z.infer<typeo
   return p.id;
 }
 
+const STATEMENT_HINT = "Download your updated statement of account from Billing.";
+const METHOD_NAMES: Record<z.infer<typeof PaymentInput>["method"], string> = {
+  cash: "cash", bank_transfer: "bank transfer", gcash: "GCash", maya: "Maya", other: "other",
+};
+
+/** A payment taken at the office: records it and tells the student, who can download their statement. */
+export async function recordOfficePayment(db: DbOrTx, user: User, input: z.infer<typeof PaymentInput>) {
+  const id = await recordPayment(db, user, input);
+  await notify(db, [{
+    userId: input.studentId, kind: "payment_recorded", link: "billing", data: { paymentId: id },
+    title: "Payment recorded",
+    body: `Your payment of ${formatPeso(input.amount)} on ${input.paidOn} (${METHOD_NAMES[input.method]}) was recorded. ${STATEMENT_HINT}`,
+  }]);
+  return id;
+}
+
 /** Cancels a recorded payment; its amounts come off the invoices it paid (the views ignore void payments). */
 export async function voidPayment(db: DbOrTx, user: User, id: string, reason: string) {
   const updated = await db.update(payments).set({ voidReason: reason, voidedBy: user.id, voidedAt: new Date() })
@@ -283,6 +300,10 @@ export async function statement(db: DbOrTx, studentId: string) {
     .from(users).leftJoin(studentRecords, eq(studentRecords.userId, users.id)).where(eq(users.id, studentId));
   if (!student || student.role !== "student") throw new HttpError(404, "Student not found");
   const invoiceRows = await listInvoices(db, { studentId });
+  const lineRows = invoiceRows.length
+    ? await db.select({ invoiceId: invoiceLines.invoiceId, description: invoiceLines.description, amount: invoiceLines.amount })
+      .from(invoiceLines).where(inArray(invoiceLines.invoiceId, invoiceRows.map((i) => i.id))).orderBy(asc(invoiceLines.id))
+    : [];
   const paymentRows = await listPayments(db, studentId);
   const ledger = ((await db.execute(sql`
     SELECT entry_date, kind, ref_id, description, debit, credit, running_balance
@@ -293,10 +314,14 @@ export async function statement(db: DbOrTx, studentId: string) {
   const paid = paymentRows.filter((p) => !p.voided).reduce((n, p) => n + p.amount, 0);
   const outstanding = invoiceRows.filter((i) => ["pending", "partially_paid", "overdue"].includes(i.status)).reduce((n, i) => n + i.balance, 0);
   return {
+    school: SCHOOL_NAME,
+    generatedAt: new Date().toISOString(),
     student: { id: student.id, name: `${student.firstName} ${student.lastName}`, studentNo: student.studentNo ?? null },
     totals: { charged: round(charged), paid: round(paid), balance: round(charged - paid), outstanding: round(outstanding),
       credit: round(Math.max(0, paid - charged)) },
-    invoices: invoiceRows,
+    invoices: invoiceRows.map((i) => ({
+      ...i, lines: lineRows.filter((l) => l.invoiceId === i.id).map((l) => ({ description: l.description, amount: num(l.amount) })),
+    })),
     payments: paymentRows,
     receipts: await listReceipts(db, { studentId }),
     ledger,
@@ -464,7 +489,7 @@ export async function reviewReceipt(db: DbOrTx, user: User, id: string, input: z
     userId: r.studentId, kind: "receipt_reviewed", link: "billing", data: { receiptId: id, paymentId },
     title: input.decision === "approve" ? "Payment confirmed" : "Receipt not accepted",
     body: input.decision === "approve"
-      ? `Your payment of ${formatPeso(value)} on ${r.paidOn} was recorded.${input.note ? ` Note: ${input.note}` : ""}`
+      ? `Your payment of ${formatPeso(value)} on ${r.paidOn} was recorded.${input.note ? ` Note: ${input.note}` : ""} ${STATEMENT_HINT}`
       : `Your receipt for ${formatPeso(num(r.amountClaimed))} wasn't accepted: ${input.note}. You can upload a new one.`,
   }]);
   return paymentId;

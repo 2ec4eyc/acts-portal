@@ -295,7 +295,7 @@ export const auditLog = pgTable("audit_log", {
 // ---------- Notifications, announcements, attendance alerts (phase 2) ----------
 export const notificationKind = pgEnum("notification_kind", [
   "attendance_warning", "attendance_escalation", "payment_reminder", "receipt_reviewed", "message",
-  "invoice_issued", "receipt_submitted", "storage_warning", "course_material",
+  "invoice_issued", "receipt_submitted", "storage_warning", "course_material", "payment_recorded",
 ]);
 
 /** Per-person inbox (the bell): attendance alerts now; reminders and messages in later phases. */
