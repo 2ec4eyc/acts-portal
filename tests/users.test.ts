@@ -31,12 +31,13 @@ before(async () => {
 after(() => f.close());
 
 describe("GET /api/users", () => {
-  test("staff can list current accounts", async () => {
-    for (const role of ["admin", "president", "teacher"] as const) {
+  test("office staff can list current accounts; teachers can't (they see their own students elsewhere)", async () => {
+    for (const role of ["admin", "president"] as const) {
       const r = await call(users, { token: f.tokens[role] });
       assert.equal(r.status, 200);
       assert.equal(r.body.length, 5);
     }
+    assert.equal((await call(users, { token: f.tokens.teacher })).status, 403);
   });
   test("filters by role and status", async () => {
     const students = await call(users, { token: f.tokens.admin, query: { role: "student" } });
@@ -201,7 +202,7 @@ describe("cleanup and history", () => {
     assert.equal(audit.rows[0].n, 1);
   });
   test("history includes migrated entries with their original times", async () => {
-    const r = await call(historyRoute, { token: f.tokens.teacher, query: { id: f.ids.student } });
+    const r = await call(historyRoute, { token: f.tokens.admin, query: { id: f.ids.student } });
     assert.equal(r.status, 200);
     const legacy = r.body.filter((h: any) => h.id.startsWith("legacy-"));
     assert.equal(legacy.length, 2);

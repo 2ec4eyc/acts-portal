@@ -9,15 +9,29 @@ import {
 } from 'lucide-react';
 
 import { StudentProfileViewModal } from '../components/modals/StudentProfileViewModal';
-import { fetchAttendance, fetchCourses, fetchUsers, setGrade } from '../lib/data';
+import { fetchAttendance, fetchMyStudents, fetchUser, setGrade, type MyStudent } from '../lib/data';
 import { live } from '../lib/live';
-import { formatName } from '../lib/format';
-import type { Course, UserProfile } from '../types';
+import type { UserProfile } from '../types';
 import { toast } from '../lib/toast';
 
+const YEAR = ['', '1st Year', '2nd Year'];
+const TERM = ['', '1st Semester', '2nd Semester', 'Summer'];
+
+/** One student in one of the teacher's courses (from their actual enrollments). */
+interface Row {
+  student: { uid: string; name: string; yearLabel: string };
+  course: { id: string; name: string; semester: string; yearLevel: string };
+  grade: { gradeValue: number | ''; isIncomplete: boolean } | null;
+}
+
+const toRows = (students: MyStudent[]): Row[] => students.flatMap((s) => s.courses.map((c) => ({
+  student: { uid: s.studentId, name: s.studentName, yearLabel: s.yearLevel ? YEAR[s.yearLevel] : '' },
+  course: { id: c.offeringId, name: c.name, semester: `${TERM[c.semester] ?? ''} · SY ${c.schoolYear}`, yearLevel: YEAR[c.yearLevel] ?? '' },
+  grade: c.grade === null && !c.isIncomplete ? null : { gradeValue: c.grade ?? '', isIncomplete: c.isIncomplete },
+})));
+
 export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [students, setStudents] = useState<UserProfile[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [courseFilter, setCourseFilter] = useState('All');
   const [yearFilter, setYearFilter] = useState('All');
@@ -30,42 +44,31 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    // The teacher's active courses, and attendance for just those courses.
-    const stopCourses = live(async () => {
-      const list = (await fetchCourses()).filter((data) => data.instructorId === profile.uid || data.professor === formatName(profile));
-      const attendance = (await Promise.all(list.map((c) => fetchAttendance({ courseId: c.id })))).flat();
+    // The students actually enrolled in the teacher's own courses, and attendance for just those courses.
+    return live(async () => {
+      const list = toRows(await fetchMyStudents());
+      const courseIds = [...new Set(list.map((r) => r.course.id))];
+      const attendance = (await Promise.all(courseIds.map((id) => fetchAttendance({ courseId: id })))).flat();
       return { list, attendance };
     }, ({ list, attendance }) => {
-      setCourses(list);
+      setRows(list);
       setAttendanceRecords(attendance);
     });
+  }, [profile.uid]);
 
-    const stopStudents = live(() => fetchUsers({ role: 'student' }), setStudents);
-
-    return () => {
-      stopCourses();
-      stopStudents();
-    };
-  }, [profile.uid, profile]);
-
-  const rows: { student: UserProfile, course: Course, grade: any }[] = [];
-  courses.forEach(course => {
-    const syField = course.yearLevel === '1st Year' ? 'firstYearSchoolYear' : 'secondYearSchoolYear';
-    const enrolledStudents = students.filter(s => 
-      s.yearLevel === course.yearLevel && s[syField as keyof UserProfile] === course.schoolYear
-    );
-    enrolledStudents.forEach(student => {
-      const grade = (student.grades || []).find((g: any) => g.id === course.id);
-      rows.push({ student, course, grade });
-    });
-  });
+  const courses = [...new Map<string, Row['course']>(rows.map((r) => [r.course.id, r.course])).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredRows = rows.filter(row => {
-    const matchSearch = formatName(row.student).toLowerCase().includes(searchTerm.toLowerCase());
+    const matchSearch = row.student.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCourse = courseFilter === 'All' || row.course.id === courseFilter;
     const matchYear = yearFilter === 'All' || row.course.yearLevel === yearFilter;
     return matchSearch && matchCourse && matchYear;
   });
+
+  const openProfile = async (uid: string) => {
+    try { setSelectedStudentForProfile(await fetchUser(uid)); }
+    catch (err: any) { toast.error(`Couldn't open the profile: ${err.message}`); }
+  };
 
   const getStatus = (gradeValue: number | '', isIncomplete: boolean) => {
     if (isIncomplete) return { label: 'Incomplete', color: 'bg-amber-100 text-amber-700 border-amber-200' };
@@ -81,11 +84,8 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
     }
     setLoading(true);
     try {
-      const student = students.find(s => s.uid === studentId);
-      if (!student) return;
-      
       // Saved with the teacher as editor; the server records the change in the student's history.
-      await setGrade(student.uid, courseId, editFormData.isIncomplete ? '' : Number(editFormData.gradeValue), editFormData.isIncomplete);
+      await setGrade(studentId, courseId, editFormData.isIncomplete ? '' : Number(editFormData.gradeValue), editFormData.isIncomplete);
       setEditingId(null);
     } catch (err: any) {
       console.error("Error updating grade:", err);
@@ -159,10 +159,10 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                       <React.Fragment key={rowId}>
                         <tr className="hover:bg-fb-hover transition-colors">
                           <td className="px-6 py-4">
-                            <div className="font-bold text-sm text-fb-textPrimary capitalize italic">{formatName(row.student)}</div>
+                            <div className="font-bold text-sm text-fb-textPrimary capitalize italic">{row.student.name}</div>
                             <div className="flex flex-col gap-1 mt-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest">{row.student.yearLevel}</span>
+                                <span className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest">{row.student.yearLabel}</span>
                                 {courseAbsences.length > 0 && (
                                   <button 
                                     onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : rowId); }}
@@ -175,7 +175,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                                 )}
                               </div>
                               <button 
-                                onClick={() => setSelectedStudentForProfile(row.student)}
+                                onClick={() => openProfile(row.student.uid)}
                                 className="text-[10px] font-black text-fb-blue hover:text-fb-blue/80 hover:underline uppercase tracking-widest cursor-pointer text-left self-start mt-0.5"
                               >
                                 View Profile
@@ -298,10 +298,10 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                   {/* Student Details and Actions */}
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex-1">
-                      <div className="font-bold text-base text-fb-textPrimary capitalize italic leading-tight">{formatName(row.student)}</div>
+                      <div className="font-bold text-base text-fb-textPrimary capitalize italic leading-tight">{row.student.name}</div>
                       <div className="flex flex-col gap-1.5 mt-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest bg-fb-gray px-2 py-0.5 rounded-md">{row.student.yearLevel}</span>
+                          <span className="text-[10px] font-black text-fb-textSecondary uppercase tracking-widest bg-fb-gray px-2 py-0.5 rounded-md">{row.student.yearLabel}</span>
                           {courseAbsences.length > 0 && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : rowId); }}
@@ -314,7 +314,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                           )}
                         </div>
                         <button 
-                          onClick={() => setSelectedStudentForProfile(row.student)}
+                          onClick={() => openProfile(row.student.uid)}
                           className="text-[10px] font-black text-fb-blue hover:text-fb-blue/80 hover:underline uppercase tracking-widest cursor-pointer text-left self-start"
                         >
                           View Profile

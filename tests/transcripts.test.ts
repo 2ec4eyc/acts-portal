@@ -92,13 +92,14 @@ describe("issue, read, revoke, verify", () => {
     assert.equal(r.body.content.totals.generalAverage, 78.4);
   });
 
-  test("students see their own transcripts; staff can read; other students cannot", async () => {
+  test("students see their own transcripts; office staff can read; teachers and other students cannot", async () => {
     const mine = await call(list, { token: f.tokens.student, query: { studentId: f.ids.student } });
     assert.equal(mine.status, 200);
     assert.deepEqual(mine.body.map((t: { id: string }) => t.id), [id]);
     assert.equal(mine.body[0].content, undefined, "lists carry no content");
     assert.equal((await call(one, { token: f.tokens.student, query: { id } })).status, 200);
-    assert.equal((await call(one, { token: f.tokens.teacher, query: { id } })).status, 200);
+    assert.equal((await call(one, { token: f.tokens.president, query: { id } })).status, 200);
+    assert.equal((await call(one, { token: f.tokens.teacher, query: { id } })).status, 403);
     assert.equal((await call(one, { token: f.tokens.student2, query: { id } })).status, 403);
     assert.equal((await call(list, { token: f.tokens.student2, query: { studentId: f.ids.student } })).status, 403);
   });

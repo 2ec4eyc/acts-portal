@@ -34,7 +34,7 @@ export type Role = User["role"];
 export type Permission =
   // users:write = edit student accounts; users:admin = everything else about accounts
   // (staff accounts, roles, emails, create, archive, restore, delete).
-  | "users:read" | "users:write" | "users:admin"
+  | "users:read" | "users:write" | "users:admin" | "students:read_own"
   | "grades:write_own_offerings" | "grades:write_any"
   | "attendance:write" | "offerings:write" | "materials:write_own" | "materials:write_any"
   | "transcripts:issue" | "settings:write" | "audit:read" | "announcements:write"
@@ -42,7 +42,8 @@ export type Permission =
 
 const PERMISSIONS: Record<Role, readonly Permission[]> = {
   student: [],
-  teacher: ["users:read", "grades:write_own_offerings", "materials:write_own"],
+  // Teachers read only the students enrolled in their own courses (assertTeachesStudent).
+  teacher: ["students:read_own", "grades:write_own_offerings", "materials:write_own"],
   president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write",
               "materials:write_own", "materials:write_any"],
   vice_president: ["users:read", "users:write", "grades:write_own_offerings", "grades:write_any", "attendance:write",

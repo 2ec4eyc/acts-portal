@@ -18,7 +18,7 @@ export const GradeInput = z.strictObject({
 export type GradeInput = z.infer<typeof GradeInput>;
 
 /** Grades per enrollment, for one student or one offering. */
-export async function listGrades(db: DbOrTx, filter: { studentId?: string; studentIds?: string[]; offeringId?: string }) {
+export async function listGrades(db: DbOrTx, filter: { studentId?: string; studentIds?: string[]; offeringId?: string; instructorId?: string }) {
   if (filter.studentIds?.length === 0) return [];
   const rows = await db
     .select({
@@ -51,6 +51,7 @@ export async function listGrades(db: DbOrTx, filter: { studentId?: string; stude
       filter.studentId ? eq(enrollments.studentId, filter.studentId) : undefined,
       filter.studentIds ? inArray(enrollments.studentId, filter.studentIds) : undefined,
       filter.offeringId ? eq(enrollments.offeringId, filter.offeringId) : undefined,
+      filter.instructorId ? eq(courseOfferings.instructorId, filter.instructorId) : undefined,
     ))
     .orderBy(asc(schoolYears.label), asc(courseOfferings.yearLevel), asc(terms.semester), asc(courses.name), asc(users.lastName));
   return rows.map(({ studentFirstName, studentLastName, value, isIncomplete, units, ...r }) => ({
@@ -71,6 +72,17 @@ export async function assertCanGrade(db: DbOrTx, user: User, offeringId: string)
   if (can(user, "grades:write_any")) return;
   if (can(user, "grades:write_own_offerings") && offering.instructorId === user.id) return;
   throw new HttpError(403, "You can only grade your own courses");
+}
+
+/**
+ * Teachers grade only students enrolled (not dropped) in the course; the office may also grade a
+ * student who isn't enrolled yet, which enrolls them (see writeGrade).
+ */
+export async function assertCanGradeStudent(db: DbOrTx, user: User, offeringId: string, studentId: string) {
+  if (can(user, "grades:write_any")) return;
+  const [e] = await db.select({ status: enrollments.status }).from(enrollments)
+    .where(and(eq(enrollments.offeringId, offeringId), eq(enrollments.studentId, studentId)));
+  if (!e || e.status === "dropped") throw new HttpError(400, "This student isn't enrolled in this course; ask the office to add them");
 }
 
 async function enrollmentFor(db: DbOrTx, offeringId: string, studentId: string, create: boolean) {
@@ -117,6 +129,7 @@ export async function writeGrade(tx: DbOrTx, actorId: string, input: GradeInput,
 export async function writeGrades(db: Db, user: User, items: GradeInput[]) {
   return db.transaction(async (tx) => {
     for (const offeringId of new Set(items.map((i) => i.offeringId))) await assertCanGrade(tx, user, offeringId);
+    for (const item of items) await assertCanGradeStudent(tx, user, item.offeringId, item.studentId);
     for (const item of items) await writeGrade(tx, user.id, item);
     return items.length;
   });
