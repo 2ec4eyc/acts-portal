@@ -124,13 +124,13 @@ export const StudentGradesView = ({ profile }: { profile: UserProfile }) => {
                           <div className="col-span-6 md:col-span-5 flex flex-col">
                             <span className="text-xs md:text-sm font-bold text-fb-textPrimary truncate capitalize italic leading-none">{item.name}</span>
                             <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                              <span className="text-[8px] md:text-[9px] font-bold text-fb-textSecondary opacity-60 capitalize tracking-tight">{item.professor}</span>
-                              {item.isOrphaned && <span className="text-[7px] font-black text-rose-500 uppercase tracking-tighter italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Archived/Deleted</span>}
+                              <span className="text-[9px] md:text-[9px] font-bold text-fb-textSecondary opacity-60 capitalize tracking-tight">{item.professor}</span>
+                              {item.isOrphaned && <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Archived/Deleted</span>}
                               
                               {courseAbsences.length > 0 && (
                                 <button 
                                   onClick={(e) => { e.stopPropagation(); setExpandedCourseId(isExpanded ? null : item.id); }}
-                                  className="flex items-center gap-1 text-[8px] md:text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded transition-all cursor-pointer"
+                                  className="flex items-center gap-1 text-[9px] md:text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded transition-all cursor-pointer"
                                 >
                                   <span>{courseAbsences.length} {courseAbsences.length === 1 ? 'Absence' : 'Absences'}</span>
                                   <span className="opacity-60 font-medium">({excusedCount} excused)</span>
@@ -145,7 +145,7 @@ export const StudentGradesView = ({ profile }: { profile: UserProfile }) => {
                             </span>
                           </div>
                           <div className="col-span-4 md:col-span-5 flex justify-end items-center">
-                            <span className={`px-2 md:px-4 py-1 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border shadow-sm text-center ${grade ? getStatus(grade.gradeValue, grade.isIncomplete).color : 'bg-fb-gray text-fb-textSecondary'}`}>
+                            <span className={`px-2 md:px-4 py-1 md:py-1.5 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest border shadow-sm text-center ${grade ? getStatus(grade.gradeValue, grade.isIncomplete).color : 'bg-fb-gray text-fb-textSecondary'}`}>
                               {grade ? getStatus(grade.gradeValue, grade.isIncomplete).label : 'Pending'}
                             </span>
                           </div>
@@ -153,13 +153,13 @@ export const StudentGradesView = ({ profile }: { profile: UserProfile }) => {
 
                         {isExpanded && courseAbsences.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-fb-border/40 space-y-2 animate-in slide-in-from-top-2 duration-200">
-                            <p className="text-[8px] font-black uppercase tracking-widest text-fb-textSecondary">Absence History</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary">Absence History</p>
                             <div className="space-y-1.5">
                               {courseAbsences.map(abs => (
                                 <div key={abs.id} className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-2.5 rounded-xl border border-fb-border/60 text-xs">
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono text-fb-textPrimary font-semibold text-[11px]">{abs.date}</span>
-                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
                                       {abs.isExcused ? 'Excused' : 'Unexcused'}
                                     </span>
                                   </div>

@@ -24,14 +24,14 @@ export const NotificationsPanel = ({ onOpenLink }: { onOpenLink: (page: string) 
 
   return (
     <section aria-labelledby="dash-notifications-title" className="h-full flex flex-col bg-white rounded-2xl border border-fb-border shadow-sm text-left">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-fb-border">
-        <h2 id="dash-notifications-title" className="flex-1 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-fb-textPrimary">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4 border-b border-fb-border">
+        <h2 id="dash-notifications-title" className="flex-1 min-w-max flex items-center gap-2 text-sm font-black uppercase tracking-widest text-fb-textPrimary">
           <Bell size={16} className="text-fb-blue" aria-hidden="true" /> Notifications
           {unread > 0 && <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black tabular-nums">{unread} new</span>}
         </h2>
         {unread > 0 && (
           <button type="button" onClick={() => markNotificationsRead('all').catch(() => {})}
-            className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-fb-blue hover:underline">
+            className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-fb-blue hover:underline">
             <CheckCheck size={14} /> Mark all read
           </button>
         )}

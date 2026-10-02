@@ -324,7 +324,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                                 <div className="flex justify-between items-start">
                                   <div className="flex flex-col flex-1 mr-3">
                                     <span className="text-xs font-bold text-fb-textPrimary truncate capitalize italic leading-tight">{item.name}</span>
-                                    {item.isOrphaned && <span className="text-[7px] font-black text-rose-500 uppercase tracking-tighter italic">Course Archived/Deleted</span>}
+                                    {item.isOrphaned && <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter italic">Course Archived/Deleted</span>}
                                   </div>
                                   <div className="shrink-0 text-right">
                                     {isEditing ? (
@@ -353,11 +353,11 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
 
                                 <div className="flex justify-between items-start">
                                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                    <span className="text-[8px] font-bold text-fb-textSecondary opacity-60 capitalize tracking-tight">Prof. {item.professor}</span>
+                                    <span className="text-[9px] font-bold text-fb-textSecondary opacity-60 capitalize tracking-tight">Prof. {item.professor}</span>
                                     {courseAbsences.length > 0 && (
                                       <button 
                                         onClick={(e) => { e.stopPropagation(); setExpandedCourseId(isExpanded ? null : item.id); }}
-                                        className="flex items-center gap-1 text-[8px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer"
+                                        className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer"
                                       >
                                         <span>{courseAbsences.length} {courseAbsences.length === 1 ? 'Abs' : 'Absences'}</span>
                                         <span className="opacity-60 font-medium">({excusedCount} exc)</span>
@@ -368,7 +368,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                                   <div className="flex flex-col items-end gap-2">
                                     {isEditing ? (
                                       <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border shadow-sm">
-                                        <span className="text-[8px] font-black text-fb-textSecondary uppercase tracking-tighter">Inc?</span>
+                                        <span className="text-[9px] font-black text-fb-textSecondary uppercase tracking-tighter">Inc?</span>
                                         <input 
                                           type="checkbox" 
                                           checked={editFormData.isIncomplete}
@@ -377,7 +377,7 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                                         />
                                       </div>
                                     ) : (
-                                      <span className={`text-[8px] font-black uppercase tracking-widest ${grade ? (grade.isIncomplete ? 'text-amber-600' : grade.gradeValue === '' ? 'text-fb-textSecondary' : grade.gradeValue >= 75 ? 'text-emerald-600' : 'text-rose-600') : 'text-fb-textSecondary'}`}>
+                                      <span className={`text-[9px] font-black uppercase tracking-widest ${grade ? (grade.isIncomplete ? 'text-amber-600' : grade.gradeValue === '' ? 'text-fb-textSecondary' : grade.gradeValue >= 75 ? 'text-emerald-600' : 'text-rose-600') : 'text-fb-textSecondary'}`}>
                                         {grade ? getStatus(grade.gradeValue, grade.isIncomplete).label : 'Pending'}
                                       </span>
                                     )}
@@ -446,11 +446,11 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                                   <span className="text-sm font-bold text-fb-textPrimary truncate capitalize italic leading-tight">{item.name}</span>
                                   <div className="flex flex-wrap items-center gap-2 mt-1">
                                     <span className="text-[9px] font-bold text-fb-textSecondary opacity-60 capitalize tracking-tight">Prof. {item.professor}</span>
-                                    {item.isOrphaned && <span className="text-[7px] font-black text-rose-500 uppercase tracking-tighter italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Archived/Deleted</span>}
+                                    {item.isOrphaned && <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter italic bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">Archived/Deleted</span>}
                                     {courseAbsences.length > 0 && (
                                       <button 
                                         onClick={(e) => { e.stopPropagation(); setExpandedCourseId(isExpanded ? null : item.id); }}
-                                        className="flex items-center gap-1 text-[8px] md:text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded transition-all cursor-pointer"
+                                        className="flex items-center gap-1 text-[9px] md:text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded transition-all cursor-pointer"
                                       >
                                         <span>{courseAbsences.length} {courseAbsences.length === 1 ? 'Absence' : 'Absences'}</span>
                                         <span className="opacity-60 font-medium">({excusedCount} excused)</span>
@@ -560,13 +560,13 @@ export const GradesModal = ({ student: propStudent, adminProfile, onClose }: { s
                               {/* Expanded Absences Details */}
                               {isExpanded && courseAbsences.length > 0 && (
                                 <div className="mt-4 pt-4 border-t border-fb-border/40 space-y-2 animate-in slide-in-from-top-2 duration-200">
-                                  <p className="text-[8px] font-black uppercase tracking-widest text-fb-textSecondary">Absence History</p>
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-fb-textSecondary">Absence History</p>
                                   <div className="space-y-1.5">
                                     {courseAbsences.map(abs => (
                                       <div key={abs.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-2 rounded-xl border border-fb-border/60 text-xs">
                                         <div className="flex items-center gap-2">
                                           <span className="font-mono text-fb-textPrimary font-semibold text-[10px]">{abs.date}</span>
-                                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
                                             {abs.isExcused ? 'Excused' : 'Unexcused'}
                                           </span>
                                         </div>

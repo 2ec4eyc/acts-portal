@@ -97,14 +97,14 @@ export const CalendarDayModal = ({
                    <div className="flex items-center gap-3 text-xs font-bold text-fb-textSecondary">
                       <div className="p-2 bg-white rounded-xl shadow-sm"><Clock size={16} className="text-fb-blue" /></div>
                       <div className="flex flex-col">
-                        <span className="text-[8px] uppercase opacity-40">Schedule</span>
+                        <span className="text-[9px] uppercase opacity-40">Schedule</span>
                         <span>{c.startTime} - {c.endTime}</span>
                       </div>
                    </div>
                    <div className="flex items-center gap-3 text-xs font-bold text-fb-textSecondary">
                       <div className="p-2 bg-white rounded-xl shadow-sm"><UserIcon size={16} className="text-fb-blue" /></div>
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-[8px] uppercase opacity-40">Instructor</span>
+                        <span className="text-[9px] uppercase opacity-40">Instructor</span>
                         <span className="italic capitalize break-words">{formatProfessorName(c.professor)}</span>
                       </div>
                    </div>
@@ -128,7 +128,7 @@ export const CalendarDayModal = ({
                           <a 
                             href="#"
                             onClick={(e) => { e.preventDefault(); downloadMaterial(file).catch((err) => toast.error("Download failed: " + err.message)); }}
-                            className="flex items-center gap-1 py-2 px-3 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                            className="flex items-center gap-1 py-2.5 px-3 min-h-9 bg-fb-blue hover:bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95"
                           >
                             <Download size={10} />
                             <span>Download</span>
@@ -154,7 +154,7 @@ export const CalendarDayModal = ({
                       >
                         <Edit2 size={16} />
                       </button>
-                      <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60">Edit</span>
+                      <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60">Edit</span>
                     </div>
                   )}
                 </div>

@@ -362,7 +362,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                 <button 
                   onClick={handleBatchRestore}
                   disabled={isProcessing}
-                  className="w-full bg-emerald-500 text-white py-1 md:py-1.5 rounded-full font-black text-[8px] md:text-[9px] uppercase shadow-md hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+                  className="w-full bg-emerald-500 text-white py-1 md:py-1.5 rounded-full font-black text-[9px] md:text-[9px] uppercase shadow-md hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
                 >
                   {isProcessing ? <RefreshCw className="animate-spin" size={12}/> : <RotateCcw size={12}/>}
                   <span>Restore ({selectedToRestore.length})</span>
@@ -373,7 +373,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                 <button 
                   onClick={handleBatchArchive}
                   disabled={isProcessing}
-                  className="w-full bg-red-600 text-white py-1 md:py-1.5 rounded-full font-black text-[8px] md:text-[9px] uppercase shadow-md hover:bg-red-700 transition-all flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
+                  className="w-full bg-red-600 text-white py-1 md:py-1.5 rounded-full font-black text-[9px] md:text-[9px] uppercase shadow-md hover:bg-red-700 transition-all flex items-center justify-center gap-2 animate-in slide-in-from-top-2 duration-300"
                 >
                   {isProcessing ? <RefreshCw className="animate-spin" size={12}/> : <Archive size={12}/>}
                   <span>Archive ({selectedToArchive.length})</span>
@@ -392,7 +392,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
           </div>
         ) : (
           <>
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-fb-gray/50 border-b text-[10px] font-black uppercase tracking-widest text-fb-textSecondary">
                   <tr>
@@ -435,10 +435,10 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                           </div>
                           {c.isRecurring ? (
                             <div className="flex flex-wrap gap-1">
-                              {c.frequency === 'Daily' && <span className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
-                              {missingDays(c) && <span className="text-[8px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
+                              {c.frequency === 'Daily' && <span className="text-[9px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
+                              {missingDays(c) && <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
                               {c.daysOfWeek?.map(day => (
-                                <span key={day} className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
+                                <span key={day} className="text-[9px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
                               ))}
                             </div>
                           ) : (
@@ -450,11 +450,11 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                         <div className="flex flex-col gap-1 items-center">
                           <span className="px-4 py-1.5 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
                           {!isViewTrash && (c.schoolType
-                            ? <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
-                            : <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
-                          <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
-                          {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
-                          {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
+                            ? <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
+                            : <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
+                          <span className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
+                          {c.schoolYear && <span className="text-[9px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
+                          {c.units !== undefined && <span className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
                         </div>
                       </td>
                       <td className="px-8 py-5">
@@ -469,7 +469,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                     className="w-3.5 h-3.5 md:w-4 md:h-4 rounded border-fb-border text-fb-blue focus:ring-fb-blue cursor-pointer"
                                   />
                                 </div>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60">Restore</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60">Restore</span>
                             </div>
                           ) : (
                             <>
@@ -481,7 +481,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                 >
                                   <Copy size={14} />
                                 </button>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-emerald-500">Duplicate</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-emerald-500">Duplicate</span>
                               </div>
                               {profileRole === 'admin' && (
                                 <div className="flex flex-col items-center gap-1 group">
@@ -489,7 +489,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                     className="p-2 md:p-2.5 text-fb-textSecondary hover:bg-amber-500 hover:text-white rounded-xl transition-all shadow-sm border border-fb-border">
                                     <UsersIcon size={14} />
                                   </button>
-                                  <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-amber-600">Students</span>
+                                  <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-amber-600">Students</span>
                                 </div>
                               )}
                               <div className="flex flex-col items-center gap-1 group">
@@ -499,7 +499,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                 >
                                   <Edit2 size={14} />
                                 </button>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-fb-blue">Edit</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-fb-blue">Edit</span>
                               </div>
                               <div className="flex flex-col items-center gap-1 group">
                                 <div className="p-2 md:p-2.5">
@@ -510,7 +510,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                                     className="w-3.5 h-3.5 md:w-4 md:h-4 rounded border-fb-border text-fb-blue focus:ring-fb-blue cursor-pointer"
                                   />
                                 </div>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-fb-blue">Archive</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60 group-hover:text-fb-blue">Archive</span>
                               </div>
                             </>
                           )}
@@ -533,7 +533,7 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
             </div>
 
             {/* Mobile List View */}
-            <div className="md:hidden flex flex-col divide-y">
+            <div className="lg:hidden flex flex-col divide-y">
               {paginatedItems.map(c => (
                 <div key={c.id} className={`p-4 flex flex-col gap-3 ${isViewTrash ? 'bg-rose-50/10' : ''}`}>
                   <div className="flex justify-between items-start">
@@ -544,11 +544,11 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     <div className="flex flex-col items-end gap-1">
                       <span className="px-3 py-1 bg-fb-gray rounded-xl text-[10px] font-black uppercase border tracking-widest shadow-sm">{c.yearLevel}</span>
                       {!isViewTrash && (c.schoolType
-                            ? <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
-                            : <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
-                      <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
-                      {c.schoolYear && <span className="text-[8px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
-                          {c.units !== undefined && <span className="text-[8px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
+                            ? <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${c.schoolType === 'Night School' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'}`}>{c.schoolType === 'Night School' ? 'Night' : 'Day'}</span>
+                            : <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800">Day/Night not set</span>)}
+                      <span className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">{c.semester}</span>
+                      {c.schoolYear && <span className="text-[9px] font-black text-fb-blue uppercase opacity-80">SY {c.schoolYear}</span>}
+                          {c.units !== undefined && <span className="text-[9px] font-black text-fb-textSecondary uppercase opacity-60">{c.units} {c.units === 1 ? 'unit' : 'units'}</span>}
                     </div>
                   </div>
 
@@ -559,10 +559,10 @@ export const CourseManagementPage = ({ profile }: { profile: UserProfile | null 
                     </div>
                     {c.isRecurring ? (
                       <div className="flex flex-wrap gap-1">
-                        {c.frequency === 'Daily' && <span className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
-                        {missingDays(c) && <span className="text-[8px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
+                        {c.frequency === 'Daily' && <span className="text-[9px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">Mon–Fri</span>}
+                        {missingDays(c) && <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">No class days</span>}
                         {c.daysOfWeek?.map(day => (
-                          <span key={day} className="text-[8px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
+                          <span key={day} className="text-[9px] font-black text-fb-blue bg-fb-blue/5 px-1.5 py-0.5 rounded border border-fb-blue/10">{day}</span>
                         ))}
                       </div>
                     ) : (

@@ -352,7 +352,7 @@ export const CourseMaterialsPage = ({ profile }: { profile: UserProfile }) => {
                         <div className="space-y-1 max-w-full">
                           <p className="text-xs font-bold text-fb-textPrimary truncate">{file.name}</p>
                           <p className="text-[10px] text-fb-textSecondary">{size(file.size)}</p>
-                          <p className="text-[8px] font-black uppercase text-fb-blue">Click or drag to replace</p>
+                          <p className="text-[9px] font-black uppercase text-fb-blue">Click or drag to replace</p>
                         </div>
                       ) : (
                         <div className="space-y-1">
@@ -415,7 +415,7 @@ export const CourseMaterialsPage = ({ profile }: { profile: UserProfile }) => {
                 <div key={file.id} className="p-5 rounded-2xl bg-fb-gray/30 border border-fb-border/60 hover:bg-white hover:shadow-lg transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1 min-w-0 flex-1 md:max-w-md">
                     <div className="flex items-center gap-2 min-w-0 w-full">
-                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0 ${file.category === 'notes' ? 'bg-blue-50 text-blue-600 border border-blue-100' : file.category === 'exams' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider shrink-0 ${file.category === 'notes' ? 'bg-blue-50 text-blue-600 border border-blue-100' : file.category === 'exams' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                         {file.category === 'notes' ? 'Notes' : file.category === 'exams' ? 'Exam' : 'Activity'}
                       </span>
                       <span className="text-[10px] font-black text-fb-textSecondary truncate min-w-0 flex-1">{file.courseName}</span>

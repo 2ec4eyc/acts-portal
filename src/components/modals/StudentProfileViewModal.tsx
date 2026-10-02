@@ -25,9 +25,9 @@ export const StudentProfileViewModal = ({ student, onClose, extra }: { student: 
     <div role="dialog" aria-modal="true" aria-label={`Profile of ${formatName(student)}`} className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-white/80 backdrop-blur-md animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border border-fb-border custom-scrollbar relative">
         <button onClick={onClose} aria-label="Close" className="absolute top-6 right-6 p-3 bg-white hover:bg-fb-gray rounded-full transition-all border border-fb-border text-fb-textPrimary z-10"><X size={24} /></button>
-        <div className="flex flex-col md:flex-row min-h-full">
+        <div className="flex flex-col lg:flex-row min-h-full">
           {/* Left Sidebar */}
-          <div className="w-full md:w-80 md:shrink-0 bg-fb-blue p-10 flex flex-col items-center text-white">
+          <div className="w-full lg:w-80 lg:shrink-0 bg-fb-blue p-10 flex flex-col items-center text-white">
             <div className="w-40 h-40 rounded-[2.5rem] bg-white/20 border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden mb-8">
               {student.photoURL ? (
                 <img src={student.photoURL} alt="Profile" className="w-full h-full object-cover" />

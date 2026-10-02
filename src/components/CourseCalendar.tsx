@@ -31,7 +31,7 @@ export const CourseCalendar = ({ courses, onDayClick }: { courses: Course[], onD
       <div className="bg-fb-blue p-4 md:p-8 flex items-center justify-between text-white">
         <div>
           <h3 className="text-lg md:text-2xl font-black uppercase italic tracking-tighter leading-none">{monthName}</h3>
-          <p className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] opacity-40 mt-1">{year}</p>
+          <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.4em] opacity-40 mt-1">{year}</p>
         </div>
         <div className="flex items-center gap-1 md:gap-2">
           <button onClick={prevMonth} className="p-2 md:p-3 hover:bg-white/20 rounded-full transition-all active:scale-90"><ChevronLeft size={20}/></button>
@@ -63,13 +63,14 @@ export const CourseCalendar = ({ courses, onDayClick }: { courses: Course[], onD
                     {coursesForDay.length > 0 && <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-fb-blue animate-pulse shadow-[0_0_8px_rgba(24,119,242,0.8)]" />}
                   </div>
                   <div className="space-y-1 md:space-y-1.5 overflow-hidden max-h-[60%] md:max-h-[100px]">
+                    {/* Phones: a colored bar per class (tap the day for names); larger screens: the names. */}
                     {coursesForDay.slice(0, 3).map(c => (
-                      <div key={c.id} className={`px-1.5 md:px-2.5 py-1 md:py-1.5 rounded-lg md:rounded-xl border-l-[2px] md:border-l-[3px] shadow-sm text-[6px] md:text-[8px] font-bold truncate transition-transform hover:translate-x-1 ${c.yearLevel === '1st Year' ? 'bg-blue-50 border-blue-400 text-blue-800' : 'bg-emerald-50 border-emerald-400 text-emerald-800'}`}>
-                        <p className="uppercase italic leading-none">{c.name}</p>
+                      <div key={c.id} title={c.name} aria-label={c.name} className={`h-1.5 md:h-auto px-0 md:px-2.5 py-0 md:py-1.5 rounded-full md:rounded-xl md:border-l-[3px] md:shadow-sm md:text-[9px] font-bold truncate transition-transform hover:translate-x-1 ${c.yearLevel === '1st Year' ? 'bg-blue-400 md:bg-blue-50 md:border-blue-400 md:text-blue-800' : 'bg-emerald-400 md:bg-emerald-50 md:border-emerald-400 md:text-emerald-800'}`}>
+                        <p className="hidden md:block uppercase italic leading-none">{c.name}</p>
                       </div>
                     ))}
                     {coursesForDay.length > 3 && (
-                      <p className="text-[7px] md:text-[9px] font-black text-fb-textSecondary uppercase italic ml-1 md:ml-1.5 mt-1 md:mt-2 opacity-50">+{coursesForDay.length - 3}</p>
+                      <p className="text-[9px] font-black text-fb-textSecondary uppercase italic ml-1 md:ml-1.5 mt-1 md:mt-2 opacity-60">+{coursesForDay.length - 3}</p>
                     )}
                   </div>
                 </>

@@ -65,7 +65,7 @@ const PaymentForm = ({ s, onDone }: { s: Statement; onDone: (msg: string) => voi
   return (
     <form onSubmit={submit} className="bg-fb-gray/40 rounded-2xl p-4 space-y-3">
       <p className="text-xs font-black uppercase tracking-widest text-fb-textPrimary">Record a payment received at the office</p>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <label className="space-y-1"><span className={label}>Amount (₱)</span>
           <input type="number" min="0.01" step="0.01" required className={`${input} tabular-nums`} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
         <label className="space-y-1"><span className={label}>Date</span>
@@ -162,8 +162,33 @@ const StudentsTab = ({ onOpen }: { onOpen: (id: string) => void }) => {
         <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" className="accent-fb-blue w-4 h-4" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /> With a balance only</label>
         <p className="text-sm text-fb-textSecondary">Outstanding: <span className="font-black text-fb-textPrimary tabular-nums">{formatPeso(total)}</span></p>
       </div>
-      {!rows ? <p className="p-5 text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p> : shown.length === 0 ? <p className="p-5 text-sm text-fb-textSecondary">No students match.</p> : (
-        <div className="overflow-x-auto">
+      {!rows ? <p className="p-5 text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p> : shown.length === 0 ? <p className="p-5 text-sm text-fb-textSecondary">No students match.</p> : (<>
+        {/* Phones and tablets: one card per student. */}
+        <ul className="lg:hidden divide-y divide-fb-border">
+          {shown.map((r) => (
+            <li key={r.studentId} className="p-4 space-y-2">
+              <div className="flex items-start gap-3">
+                <span className="flex-1 min-w-0">
+                  <span className="block font-bold break-words">{r.studentName}</span>
+                  <span className="block text-xs text-fb-textSecondary">{[r.studentNo, r.cohort].filter(Boolean).join(' · ')}</span>
+                </span>
+                <button type="button" onClick={() => onOpen(r.studentId)} className="shrink-0 px-4 py-2 rounded-lg bg-fb-blue/10 text-fb-blue text-[10px] font-black uppercase">Open</button>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 text-xs tabular-nums">
+                <div><dt className="text-fb-textSecondary">Charged</dt><dd className="font-bold">{formatPeso(r.charged)}</dd></div>
+                <div><dt className="text-fb-textSecondary">Paid</dt><dd className="font-bold">{formatPeso(r.paid)}</dd></div>
+                <div><dt className="text-fb-textSecondary">Outstanding</dt><dd className={`font-black ${r.outstanding > 0 ? 'text-red-700' : ''}`}>{formatPeso(r.outstanding)}</dd></div>
+              </dl>
+              {(r.overdueCount > 0 || r.pendingReceipts > 0) && (
+                <p className="flex flex-wrap gap-1">
+                  {r.overdueCount > 0 && <StatusChip status="overdue" />}
+                  {r.pendingReceipts > 0 && <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-amber-100 text-amber-800">{r.pendingReceipts} receipt{r.pendingReceipts > 1 ? 's' : ''} to review</span>}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="text-[10px] font-black uppercase tracking-widest text-fb-textSecondary bg-fb-gray/40">
               <tr><th scope="col" className="px-4 py-2.5 text-left">Student</th><th scope="col" className="px-4 py-2.5 text-right">Charged</th>
@@ -187,7 +212,7 @@ const StudentsTab = ({ onOpen }: { onOpen: (id: string) => void }) => {
             </tbody>
           </table>
         </div>
-      )}
+      </>)}
     </Card>
   );
 };
@@ -477,10 +502,10 @@ const TemplatesTab = ({ onBill }: { onBill: () => void }) => {
                   <span className="block text-xs text-fb-textSecondary break-words">{t.description} · {t.lines.length} charge{t.lines.length > 1 ? 's' : ''}: {t.lines.map((l) => l.description).join(', ')}</span>
                 </span>
                 <span className="font-black tabular-nums">{formatPeso(t.total)}</span>
-                <span className="flex gap-2">
+                <div className="flex gap-2">
                   <button type="button" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-fb-border text-[10px] font-black uppercase hover:bg-fb-hover"><Pencil size={12} /> Edit</button>
                   <button type="button" onClick={() => setRemoving(t)} aria-label={`Delete ${t.name}`} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-700 text-[10px] font-black uppercase hover:bg-red-50"><Trash2 size={12} /> Delete</button>
-                </span>
+                </div>
               </li>
             ))}
           </ul>

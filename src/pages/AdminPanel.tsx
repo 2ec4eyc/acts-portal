@@ -331,7 +331,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                         <button 
                           onClick={() => setIsEnrolling(true)}
                           disabled={isProcessing}
-                          className="flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-black uppercase transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                          className="flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[9px] md:text-[9px] font-black uppercase transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
                         >
                           <GraduationCap size={10} />
                           <span>Enroll</span>
@@ -340,7 +340,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                       <button 
                         onClick={isViewArchive ? handleBatchRestoreUsers : handleBatchArchiveUsers}
                         disabled={isProcessing}
-                        className={`flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-black uppercase transition-all shadow-md ${isViewArchive ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[9px] md:text-[9px] font-black uppercase transition-all shadow-md ${isViewArchive ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-red-600 text-white hover:bg-red-700'}`}
                       >
                         {isProcessing ? <RefreshCw className="animate-spin" size={10}/> : (isViewArchive ? <RotateCcw size={10}/> : <Archive size={10}/>)}
                         <span>{isViewArchive ? `Restore` : `Archive`}</span>
@@ -349,7 +349,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                         <button
                           onClick={() => setConfirmingDelete(true)}
                           disabled={isProcessing}
-                          className="flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[8px] md:text-[9px] font-black uppercase transition-all shadow-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-1 py-1 md:py-1.5 rounded-full text-[9px] md:text-[9px] font-black uppercase transition-all shadow-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                         >
                           <Trash2 size={10} />
                           <span>Delete</span>
@@ -357,7 +357,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                       )}
                     </div>
                     <div className="flex justify-center">
-                      <span className="text-fb-textSecondary text-[8px] font-black uppercase whitespace-nowrap tracking-tighter">
+                      <span className="text-fb-textSecondary text-[9px] font-black uppercase whitespace-nowrap tracking-tighter">
                         {isViewArchive ? selectedToRestoreUsers.length : selectedToArchiveUsers.length} Selected
                       </span>
                     </div>
@@ -422,13 +422,13 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                                 <button onClick={() => setEditingUser(u)} className="p-2 hover:bg-fb-gray rounded-lg transition-colors">
                                   <Edit2 size={16} className="text-fb-textSecondary group-hover:text-fb-blue" />
                                 </button>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60">Edit</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60">Edit</span>
                               </div>
                               <div className="flex flex-col items-center gap-1 group">
                                 <button onClick={() => setResettingPasswordUser(u)} className="p-2 hover:bg-fb-gray rounded-lg transition-colors">
                                   <KeyRound size={16} className="text-fb-textSecondary group-hover:text-fb-blue" />
                                 </button>
-                                <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60 text-center w-16 leading-tight">Password Reset</span>
+                                <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60 text-center w-16 leading-tight">Password Reset</span>
                               </div>
                             </>
                           )}
@@ -442,7 +442,7 @@ export const AdminPanel = ({ profile }: { profile: UserProfile }) => {
                                   className="w-4 h-4 rounded border-fb-border text-fb-blue focus:ring-fb-blue cursor-pointer"
                                 />
                               </div>
-                              <span className="text-[8px] font-black uppercase text-fb-textSecondary opacity-60">
+                              <span className="text-[9px] font-black uppercase text-fb-textSecondary opacity-60">
                                 {isViewArchive ? "Restore" : "Select"}
                               </span>
                             </div>

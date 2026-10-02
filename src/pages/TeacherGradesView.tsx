@@ -166,7 +166,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                                 {courseAbsences.length > 0 && (
                                   <button 
                                     onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : rowId); }}
-                                    className="flex items-center gap-1 text-[8px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer animate-bounce-once"
+                                    className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer animate-bounce-once"
                                   >
                                     <span>{courseAbsences.length} {courseAbsences.length === 1 ? 'Absence' : 'Absences'}</span>
                                     <span className="opacity-60 font-medium">({excusedCount} excused)</span>
@@ -250,7 +250,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                                     <div key={abs.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-2.5 rounded-xl border border-fb-border/60 text-xs shadow-sm">
                                       <div className="flex items-center gap-2">
                                         <span className="font-mono text-fb-textPrimary font-semibold text-[11px]">{abs.date}</span>
-                                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
                                           {abs.isExcused ? 'Excused' : 'Unexcused'}
                                         </span>
                                       </div>
@@ -305,7 +305,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                           {courseAbsences.length > 0 && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : rowId); }}
-                              className="flex items-center gap-1 text-[8px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer"
+                              className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all cursor-pointer"
                             >
                               <span>{courseAbsences.length} {courseAbsences.length === 1 ? 'Absence' : 'Absences'}</span>
                               <span className="opacity-60 font-medium">({excusedCount} excused)</span>
@@ -397,7 +397,7 @@ export const TeacherGradesView = ({ profile }: { profile: UserProfile }) => {
                           <div key={abs.id} className="flex flex-col bg-fb-gray/50 p-2.5 rounded-xl border border-fb-border/60 text-xs shadow-sm space-y-1">
                             <div className="flex justify-between items-center gap-2">
                               <span className="font-mono text-fb-textPrimary font-semibold text-[11px]">{abs.date}</span>
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${abs.isExcused ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
                                 {abs.isExcused ? 'Excused' : 'Unexcused'}
                               </span>
                             </div>
