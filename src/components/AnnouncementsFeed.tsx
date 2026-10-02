@@ -4,14 +4,17 @@ import { Megaphone, Pin } from 'lucide-react';
 import { fetchAnnouncementFeed, formatWhen, markAnnouncementRead, type Announcement } from '../lib/inbox';
 import { live } from '../lib/live';
 
-/** Announcements for the signed-in person, pinned first. Opening an unread one marks it read. */
-export const AnnouncementsFeed = () => {
+/**
+ * Announcements for the signed-in person, pinned first. Opening an unread one marks it read.
+ * Hidden when there are none, unless `alwaysShow` (the dashboard), which shows an empty card instead.
+ */
+export const AnnouncementsFeed = ({ alwaysShow = false }: { alwaysShow?: boolean }) => {
   const [items, setItems] = useState<Announcement[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => live(fetchAnnouncementFeed, setItems, () => setItems([])), []);
 
-  if (!items || items.length === 0) return null;
+  if (!alwaysShow && (!items || items.length === 0)) return null;
 
   const toggle = (a: Announcement) => {
     setOpenId(openId === a.id ? null : a.id);
@@ -23,8 +26,9 @@ export const AnnouncementsFeed = () => {
       <h2 id="announcements-title" className="flex items-center gap-2 px-5 py-4 border-b border-fb-border text-sm font-black uppercase tracking-widest text-fb-textPrimary">
         <Megaphone size={16} className="text-fb-blue" aria-hidden="true" /> Announcements
       </h2>
+      {(!items || items.length === 0) && <p className="px-5 py-6 text-sm text-fb-textSecondary">{items ? 'No announcements yet.' : 'Loading…'}</p>}
       <ul className="divide-y divide-fb-border">
-        {items.map((a) => {
+        {(items ?? []).map((a) => {
           const open = openId === a.id;
           return (
             <li key={a.id}>

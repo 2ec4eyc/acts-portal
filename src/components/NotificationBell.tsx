@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, BookOpen, CheckCheck, MessageCircle, Wallet, X } from 'lucide-react';
+import { AlertTriangle, Bell, BookOpen, CheckCheck, FileText, MessageCircle, Wallet, X } from 'lucide-react';
 
 import { fetchNotifications, markNotificationsRead, timeAgo, type Notification } from '../lib/inbox';
 import { live } from '../lib/live';
+
+/** The icon for a notification, by kind (shared by the bell and the dashboard). */
+export const NotificationIcon = ({ n }: { n: Pick<Notification, 'kind' | 'title'> }) =>
+  n.kind === 'message'
+    ? <MessageCircle size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
+    : n.kind === 'course_material'
+    ? <BookOpen size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
+    : n.kind === 'payment_recorded' || (n.kind === 'receipt_reviewed' && n.title === 'Payment confirmed')
+    ? <Wallet size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-emerald-600" />
+    : n.kind === 'invoice_issued' || n.kind === 'receipt_submitted'
+    ? <FileText size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
+    : <AlertTriangle size={18} aria-hidden="true" className={`shrink-0 mt-0.5 ${n.kind === 'attendance_escalation' ? 'text-red-600' : 'text-amber-600'}`} />;
 
 /** The bell with an unread count; opens the person's notifications. Refreshes every 30 s and on focus. */
 export const NotificationBell = ({ onOpenLink }: { onOpenLink: (page: string) => void }) => {
@@ -62,13 +74,7 @@ export const NotificationBell = ({ onOpenLink }: { onOpenLink: (page: string) =>
               {items.map((n) => (
                 <li key={n.id}>
                   <button type="button" onClick={() => openItem(n)} className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-fb-hover ${n.readAt ? '' : 'bg-fb-blue/5'}`}>
-                    {n.kind === 'message'
-                      ? <MessageCircle size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
-                      : n.kind === 'course_material'
-                      ? <BookOpen size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-fb-blue" />
-                      : n.kind === 'payment_recorded' || (n.kind === 'receipt_reviewed' && n.title === 'Payment confirmed')
-                      ? <Wallet size={18} aria-hidden="true" className="shrink-0 mt-0.5 text-emerald-600" />
-                      : <AlertTriangle size={18} aria-hidden="true" className={`shrink-0 mt-0.5 ${n.kind === 'attendance_escalation' ? 'text-red-600' : 'text-amber-600'}`} />}
+                    <NotificationIcon n={n} />
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-2">
                         <span className={`text-sm text-fb-textPrimary break-words ${n.readAt ? 'font-semibold' : 'font-black'}`}>{n.title}</span>
