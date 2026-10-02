@@ -12,6 +12,7 @@ import {
 
 import { ActsLogo } from '../components/ActsLogo';
 import { AnnouncementsFeed } from '../components/AnnouncementsFeed';
+import { NextClassCard } from '../components/NextClassCard';
 import { NotificationsPanel } from '../components/NotificationsPanel';
 import { ConfirmModal } from '../components/modals/ConfirmModal';
 import { deleteFile, downloadMaterial, fetchFiles, setFileArchived } from '../lib/data';
@@ -20,24 +21,38 @@ import { formatName } from '../lib/format';
 import type { UserProfile } from '../types';
 import { toast } from '../lib/toast';
 
-/** Notifications and announcements side by side (stacked on phones), on every account's dashboard. */
+/** Office dashboards: announcements on the left, notifications on the right (stacked on phones). */
 const InboxRow = ({ onNavigate }: { onNavigate: (page: string) => void }) => (
-  <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6 items-start text-left">
-    <NotificationsPanel onOpenLink={onNavigate} />
+  <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch text-left">
     <AnnouncementsFeed alwaysShow />
+    <NotificationsPanel onOpenLink={onNavigate} />
   </div>
 );
 
-export const StudentDashboard = ({ profile, onNavigate }: { profile: UserProfile | null; onNavigate: (page: string) => void }) => {
+export const StudentDashboard = ({ profile, onNavigate, studentSchedule = true }: {
+  profile: UserProfile | null; onNavigate: (page: string) => void; studentSchedule?: boolean;
+}) => {
   const isAdminOrExec = profile?.role === 'admin' || profile?.role === 'president' || profile?.role === 'vice president';
-  
+
+  // Students and teachers: announcements across the top; notifications and their next class below.
   if (!isAdminOrExec) {
+    const who = profile?.role === 'teacher' ? 'teacher' as const : 'student' as const;
+    const showSchedule = !!profile && (who === 'teacher' || studentSchedule);
     return (
-      <div className="space-y-8 text-center flex flex-col items-center justify-center min-h-[50vh]">
-        <ActsLogo className="w-32 h-32 mb-6 animate-pulse" />
-        <h2 className="text-4xl md:text-5xl font-black text-fb-textPrimary tracking-tighter italic uppercase leading-none">Welcome to the <br />ACTS Portal</h2>
-        <p className="text-fb-textSecondary font-semibold text-lg max-w-xl leading-relaxed mt-4">Signed in as: <span className="text-fb-blue">{formatName(profile)} ({profile?.role})</span></p>
-        <div className="w-full max-w-5xl pt-4"><InboxRow onNavigate={onNavigate} /></div>
+      <div className="space-y-6 pb-10 animate-in fade-in duration-500">
+        <header className="flex items-center gap-4">
+          <ActsLogo className="w-14 h-14 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-fb-textSecondary">Welcome back</p>
+            <h1 className="text-2xl md:text-3xl font-black text-fb-textPrimary italic tracking-tight leading-tight break-words">{formatName(profile)}</h1>
+            <p className="text-xs font-bold text-fb-blue capitalize">{profile?.role}</p>
+          </div>
+        </header>
+        <AnnouncementsFeed alwaysShow />
+        <div className={`grid grid-cols-1 gap-6 items-stretch ${showSchedule ? 'lg:grid-cols-2' : ''}`}>
+          <NotificationsPanel onOpenLink={onNavigate} />
+          {showSchedule && profile && <NextClassCard who={who} uid={profile.uid} onNavigate={onNavigate} />}
+        </div>
       </div>
     );
   }

@@ -4,15 +4,16 @@ import { InboxFilter, listConversations, myConversation, startConversation } fro
 import { db } from "../../../lib/db.js";
 import { HttpError, methods, queryParam } from "../../../lib/http.js";
 
-// GET  /api/chat/conversations: the school office's inbox (admins), or a student's own thread
-//      (created on first use) with { chatEnabled }.
-// POST /api/chat/conversations { studentId }: the office starts (or opens) a thread with a student.
+// GET  /api/chat/conversations[?role=student|teacher]: the school office's inbox (admins), or a student's
+//      or teacher's own thread (created on first use) with { chatEnabled }.
+// POST /api/chat/conversations { studentId }: the office starts (or opens) a thread with a student or
+//      teacher (the field keeps its name; it's the member's account id).
 export default methods({
   GET: async (req, res) => {
     const user = await requireUser(req);
     res.setHeader("Cache-Control", "private, no-store");
     if (!can(user, "chat:admin_inbox")) return res.status(200).json(await myConversation(db, user));
-    const f = InboxFilter.parse({ q: queryParam(req, "q"), unread: queryParam(req, "unread"), status: queryParam(req, "status") });
+    const f = InboxFilter.parse({ q: queryParam(req, "q"), unread: queryParam(req, "unread"), status: queryParam(req, "status"), role: queryParam(req, "role") });
     res.status(200).json(await listConversations(db, user, f));
   },
   POST: async (req, res) => {

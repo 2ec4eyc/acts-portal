@@ -40,17 +40,20 @@ describe("threads and access", () => {
   });
 
   test("students can't read or write someone else's thread; teachers have no inbox", async () => {
+    // A teacher's GET is their own thread with the office (see "teachers" below), never the inbox.
+    assert.ok(!Array.isArray((await call(h["chat/conversations/index"], { token: f.tokens.teacher })).body));
     assert.equal((await call(h["chat/conversations/[id]/messages"], { token: f.tokens.student2, query: { id: sam } })).status, 403);
     assert.equal((await send(f.tokens.student2, sam, "hi")).status, 403);
-    assert.equal((await call(h["chat/conversations/index"], { token: f.tokens.teacher })).status, 403);
     assert.equal((await call(h["chat/conversations/[id]/messages"], { token: f.tokens.teacher, query: { id: sam } })).status, 403);
+    assert.equal((await send(f.tokens.teacher, sam, "hi")).status, 403);
+    assert.equal((await call(h["chat/conversations/index"], { token: f.tokens.president })).status, 403, "office staff without the inbox have no thread");
     assert.equal((await call(h["chat/conversations/[id]"], { method: "PATCH", token: f.tokens.student, query: { id: sam }, body: { status: "closed" } })).status, 403);
   });
 
-  test("the office can start a thread with a student, not with staff", async () => {
+  test("the office can start a thread with a student or teacher, not with other staff", async () => {
     const r = await call(h["chat/conversations/index"], { method: "POST", token: f.tokens.admin, body: { studentId: f.ids.student } });
     assert.equal(r.body.id, sam);
-    assert.equal((await call(h["chat/conversations/index"], { method: "POST", token: f.tokens.admin, body: { studentId: f.ids.teacher } })).status, 400);
+    assert.equal((await call(h["chat/conversations/index"], { method: "POST", token: f.tokens.admin, body: { studentId: f.ids.president } })).status, 400);
     assert.equal((await call(h["chat/conversations/index"], { method: "POST", token: f.tokens.student, body: { studentId: f.ids.student2 } })).status, 403);
   });
 });
@@ -183,5 +186,58 @@ describe("archive", () => {
   test("closing a thread is audited; message traffic is not", async () => {
     const rows = (await f.pool.query("SELECT op, old, new FROM audit_log WHERE table_name = 'conversations' AND entity_id = $1 ORDER BY id", [rita])).rows;
     assert.deepEqual(rows.map((r) => [r.op, r.new?.status]), [["INSERT", "open"], ["UPDATE", "closed"], ["UPDATE", "open"]]);
+  });
+});
+
+describe("teachers", () => {
+  let tess = "";
+  test("a teacher has a thread with the office and the admins are told it's a teacher", async () => {
+    await f.pool.query("UPDATE conversations SET admin_last_read_at = now()");   // start from a clean inbox
+    const t = await mine(f.tokens.teacher);
+    assert.match(t.id, /^[0-9a-f-]{36}$/);
+    tess = t.id;
+    assert.equal((await send(f.tokens.teacher, tess, "Can I borrow the projector on Friday?")).status, 201);
+    const alerts = await messageAlerts(f.ids.admin);
+    assert.deepEqual(alerts.at(-1), { title: "Message from Tess Teacher (Teacher)", body: "Can I borrow the projector on Friday?" });
+    assert.equal(await unread(f.tokens.admin), 1);
+  });
+
+  test("the inbox shows the role and can be filtered by it", async () => {
+    const all = await inbox();
+    const row = all.find((c: { id: string }) => c.id === tess);
+    assert.deepEqual([row.role, row.studentName, row.unread], ["teacher", "Tess Teacher", true]);
+    assert.deepEqual((await inbox({ role: "teacher" })).map((c: { id: string }) => c.id), [tess]);
+    assert.ok((await inbox({ role: "student" })).every((c: { role: string }) => c.role === "student"));
+    assert.equal(all.find((c: { id: string }) => c.id === sam).role, "student");
+  });
+
+  test("the office replies; the teacher is notified and sees it unread", async () => {
+    assert.equal((await read(f.tokens.admin, tess)).status, 204);
+    assert.equal((await send(f.tokens.admin, tess, "Yes, it's in the office.")).status, 201);
+    assert.equal(await unread(f.tokens.teacher), 1);
+    assert.deepEqual((await messageAlerts(f.ids.teacher)).at(-1), { title: "New message from the school office", body: "Yes, it's in the office." });
+    const msgs = await list(f.tokens.teacher, tess);
+    assert.deepEqual(msgs.messages.map((m: { body: string; mine: boolean; fromOffice: boolean }) => [m.body, m.mine, m.fromOffice]),
+      [["Can I borrow the projector on Friday?", true, false], ["Yes, it's in the office.", false, true]]);
+    await read(f.tokens.teacher, tess);
+    assert.equal(await unread(f.tokens.teacher), 0);
+  });
+
+  test("the office can start a thread with a teacher; chat switched off stops teachers too", async () => {
+    assert.equal((await call(h["chat/conversations/index"], { method: "POST", token: f.tokens.admin, body: { studentId: f.ids.teacher } })).body.id, tess);
+    const patch = (chat: boolean) => call(h["settings/[key]"], { method: "PATCH", token: f.tokens.admin, query: { key: "features" }, body: { chat } });
+    assert.equal((await patch(false)).status, 200);
+    try {
+      assert.equal((await send(f.tokens.teacher, tess, "still there?")).status, 403);
+    } finally { await patch(true); }
+  });
+
+  test("teacher messages are archived like students'", async () => {
+    await f.pool.query("UPDATE messages SET created_at = now() - interval '2 days' WHERE conversation_id = $1", [tess]);
+    const today = new Date().toISOString().slice(0, 10);
+    const r = (await call(h["chat/archive/messages"], { token: f.tokens.admin, query: { before: today } })).body;
+    const rows = r.messages.filter((m: { conversationId: string }) => m.conversationId === tess);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows.map((m: { memberRole: string; studentName: string }) => [m.memberRole, m.studentName]), [["teacher", "Tess Teacher"], ["teacher", "Tess Teacher"]]);
   });
 });

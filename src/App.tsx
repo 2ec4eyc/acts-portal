@@ -28,7 +28,7 @@ import { DEFAULT_FEATURES, fetchPublicSettings, type Features } from './lib/sett
 import { AdminBillingPage } from './pages/AdminBillingPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
-import { OfficeMessages, StudentMessages } from './pages/MessagesPage';
+import { MemberMessages, OfficeMessages } from './pages/MessagesPage';
 import { Login } from './pages/Login';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -115,8 +115,8 @@ export const App = () => {
     return () => { cancelled = true; stop?.(); };
   }, [user]);
 
-  // Unread chat badge: threads waiting for the office (admins), or a reply for a student.
-  const chatRole = profile?.role === 'admin' ? 'office' : profile?.role === 'student' && features.chat ? 'student' : null;
+  // Unread chat badge: threads waiting for the office (admins), or a reply for a student or teacher.
+  const chatRole = profile?.role === 'admin' ? 'office' : (profile?.role === 'student' || profile?.role === 'teacher') && features.chat ? 'member' : null;
   useEffect(() => {
     if (!chatRole) { setChatUnread(0); return; }
     return live(fetchChatUnread, (r) => setChatUnread(r.count), () => {});
@@ -172,10 +172,10 @@ export const App = () => {
       return <ClassManagementPage profile={profile} tab={STUDENT_CLASS_TAB[activePage]} studentSchedule={features.studentSchedule} />;
     }
     switch (activePage) {
-      case 'dashboard': return <StudentDashboard profile={profile} onNavigate={setActivePage} />;
+      case 'dashboard': return <StudentDashboard profile={profile} onNavigate={setActivePage} studentSchedule={features.studentSchedule} />;
       case 'profile': return <ProfilePage profile={profile} />;
       case 'records': return profile ? <StudentGradesView profile={profile} /> : null;
-      case 'calendar': return hasAdminView && profile ? <ClassManagementPage profile={profile} tab="schedule" /> : <StudentDashboard profile={profile} onNavigate={setActivePage} />;
+      case 'calendar': return hasAdminView && profile ? <ClassManagementPage profile={profile} tab="schedule" /> : <StudentDashboard profile={profile} onNavigate={setActivePage} studentSchedule={features.studentSchedule} />;
       case 'admin': return (!isTeacher && hasAdminView) ? <AdminPanel profile={profile} /> : <PermissionDeniedGate message="Admin Role Required" />;
       // Class Management tabs; the old page ids open their tab (tabs a role can't use aren't shown).
       case 'classes': case 'grades': case 'courses': case 'attendance': case 'upload_files':
@@ -183,7 +183,7 @@ export const App = () => {
           ? <ClassManagementPage profile={profile} tab={CLASS_TAB[activePage]} />
           : <PermissionDeniedGate message="Staff Role Required" />;
       case 'billing': return isAdmin ? <AdminBillingPage /> : isStudent ? <StudentBillingPage receiptUploads={features.receiptUploads} /> : <PermissionDeniedGate message="Admin Role Required" />;
-      case 'messages': return isAdmin ? <OfficeMessages /> : isStudent && features.chat ? <StudentMessages /> : <StudentDashboard profile={profile} onNavigate={setActivePage} />;
+      case 'messages': return isAdmin ? <OfficeMessages /> : (isStudent || isTeacher) && features.chat ? <MemberMessages teacher={isTeacher} /> : <StudentDashboard profile={profile} onNavigate={setActivePage} studentSchedule={features.studentSchedule} />;
       case 'announcements': return isAdmin ? <AnnouncementsPage /> : <PermissionDeniedGate message="Admin Role Required" />;
       // Settings tabs: 'audit' (old Audit Log page) and 'settings/storage' (storage alerts) open their tab.
       case 'settings': case 'settings/storage': case 'audit':
@@ -191,7 +191,7 @@ export const App = () => {
           ? <SettingsPage tab={activePage === 'audit' ? 'audit' : activePage === 'settings/storage' ? 'storage' : 'general'} />
           : <PermissionDeniedGate message="Admin Role Required" />;
       case 'notes': return hasAdminView && profile ? <ClassManagementPage profile={profile} tab="materials" /> : null;
-      default: return <StudentDashboard profile={profile} onNavigate={setActivePage} />;
+      default: return <StudentDashboard profile={profile} onNavigate={setActivePage} studentSchedule={features.studentSchedule} />;
     }
   };
 
@@ -224,6 +224,7 @@ export const App = () => {
               <>
                 {!isTeacher && <SidebarItem icon={Users} label="Accounts" active={activePage === 'admin'} onClick={() => {setActivePage('admin'); setSidebarOpen(false)}} />}
                 <SidebarItem icon={Briefcase} label="Class Management" active={CLASS_PAGES.includes(activePage)} onClick={() => {setActivePage('classes'); setSidebarOpen(false)}} />
+                {isTeacher && features.chat && <SidebarItem icon={MessageCircle} label="Messages" badge={chatUnread} active={activePage === 'messages'} onClick={() => {setActivePage('messages'); setSidebarOpen(false)}} />}
                 {isAdmin && (
                   <>
                     <SidebarItem icon={Wallet} label="Billing" active={activePage === 'billing'} onClick={() => {setActivePage('billing'); setSidebarOpen(false)}} />

@@ -50,3 +50,28 @@ export function occursOn(c: Meets, iso: string): boolean {
   if (c.frequency === 'Monthly') return weekOfMonth(day) === weekOfMonth(start);
   return true;   // Weekly
 }
+
+export interface Session<C> { course: C; date: string; startTime: string; endTime: string; inProgress: boolean }
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+/**
+ * The next `count` class sessions from `now` (local time), looking up to `horizonDays` ahead: today's
+ * classes that already ended are skipped, one under way is marked inProgress. Sorted by date, then time.
+ */
+export function upcomingClasses<C extends Meets & { startTime: string; endTime: string }>(
+  courses: C[], now: Date, count: number, horizonDays = 120,
+): Session<C>[] {
+  const out: Session<C>[] = [];
+  const time = hhmm(now);
+  for (let i = 0; i <= horizonDays && out.length < count; i++) {
+    const date = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+    const today = courses.filter((c) => occursOn(c, date) && (i > 0 || !c.endTime || c.endTime > time))
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+    for (const c of today) {
+      if (out.length >= count) break;
+      out.push({ course: c, date, startTime: c.startTime, endTime: c.endTime, inProgress: i === 0 && !!c.startTime && c.startTime <= time });
+    }
+  }
+  return out;
+}

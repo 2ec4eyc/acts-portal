@@ -16,8 +16,8 @@ const when = (iso: string | null) => {
     : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-/** A student's one thread with the school office. */
-export const StudentMessages = () => {
+/** A student's or teacher's one thread with the school office. */
+export const MemberMessages = ({ teacher = false }: { teacher?: boolean }) => {
   const [t, setT] = useState<MyThread | null>(null);
   const [error, setError] = useState('');
   useEffect(() => live(fetchMyThread, setT, (e) => setError((e as Error).message)), []);
@@ -25,7 +25,9 @@ export const StudentMessages = () => {
     <div className="space-y-6 pb-10">
       <div>
         <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Messages</h1>
-        <p className="text-sm text-fb-textSecondary">Ask the school office about enrollment, billing, schedules or anything else. Replies appear here and in your notifications.</p>
+        <p className="text-sm text-fb-textSecondary">{teacher
+          ? 'Message the school office about your classes, rooms, equipment, schedules or anything else. Replies appear here and in your notifications.'
+          : 'Ask the school office about enrollment, billing, schedules or anything else. Replies appear here and in your notifications.'}</p>
       </div>
       {error && <p role="alert" className="text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={16} /> {error}</p>}
       {!t && !error && <p className="text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p>}
@@ -41,23 +43,27 @@ export const StudentMessages = () => {
 const NewThread = ({ onPick, onClose }: { onPick: (studentId: string) => void; onClose: () => void }) => {
   const [students, setStudents] = useState<UserProfile[] | null>(null);
   const [q, setQ] = useState('');
-  useEffect(() => { fetchUsers({ role: 'student' }).then((s) => setStudents(s.sort((a, b) => formatName(a).localeCompare(formatName(b))))).catch(() => setStudents([])); }, []);
-  const shown = (students ?? []).filter((s) => `${formatName(s)} ${s.studentId ?? ''} ${s.batchName ?? ''}`.toLowerCase().includes(q.toLowerCase())).slice(0, 50);
+  useEffect(() => {
+    Promise.all([fetchUsers({ role: 'student' }), fetchUsers({ role: 'teacher' })])
+      .then(([s, t]) => setStudents([...s, ...t].sort((a, b) => formatName(a).localeCompare(formatName(b)))))
+      .catch(() => setStudents([]));
+  }, []);
+  const shown = (students ?? []).filter((s) => `${formatName(s)} ${s.role} ${s.studentId ?? ''} ${s.batchName ?? ''}`.toLowerCase().includes(q.toLowerCase())).slice(0, 50);
   return (
     <div className="border-b border-fb-border p-3 space-y-2 bg-fb-gray/30">
       <div className="flex items-center gap-2">
-        <input autoFocus type="search" aria-label="Find a student" placeholder="Find a student…" value={q} onChange={(e) => setQ(e.target.value)}
+        <input autoFocus type="search" aria-label="Find a student or teacher" placeholder="Find a student or teacher…" value={q} onChange={(e) => setQ(e.target.value)}
           className="flex-1 min-w-0 bg-white border-2 border-fb-gray rounded-xl px-3 py-2 text-sm outline-none focus:border-fb-blue" />
         <button type="button" onClick={onClose} aria-label="Cancel" className="p-2 rounded-lg hover:bg-fb-hover"><X size={16} /></button>
       </div>
       <ul className="max-h-60 overflow-y-auto divide-y divide-fb-border bg-white rounded-xl border border-fb-border">
         {!students && <li className="p-3 text-sm text-fb-textSecondary">Loading…</li>}
-        {students && shown.length === 0 && <li className="p-3 text-sm text-fb-textSecondary">No students found.</li>}
+        {students && shown.length === 0 && <li className="p-3 text-sm text-fb-textSecondary">No one found.</li>}
         {shown.map((s) => (
           <li key={s.uid}>
             <button type="button" onClick={() => onPick(s.uid)} className="w-full text-left px-3 py-2 hover:bg-fb-hover">
               <span className="font-bold text-sm">{formatName(s)}</span>
-              <span className="block text-xs text-fb-textSecondary">{[s.studentId, s.batchName].filter(Boolean).join(' · ') || 'Student'}</span>
+              <span className="block text-xs text-fb-textSecondary">{s.role === 'teacher' ? 'Teacher' : [s.studentId, s.batchName].filter(Boolean).join(' · ') || 'Student'}</span>
             </button>
           </li>
         ))}
@@ -66,16 +72,17 @@ const NewThread = ({ onPick, onClose }: { onPick: (studentId: string) => void; o
   );
 };
 
-/** The school office's shared inbox: every student thread, answered by any admin. */
+/** The school office's shared inbox: every student and teacher thread, answered by any admin. */
 export const OfficeMessages = () => {
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [q, setQ] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [role, setRole] = useState<'' | 'student' | 'teacher'>('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => live(() => fetchInbox({ q, unread: unreadOnly }), setThreads, (e) => setError((e as Error).message), 15_000), [q, unreadOnly]);
+  useEffect(() => live(() => fetchInbox({ q, unread: unreadOnly, role: role || undefined }), setThreads, (e) => setError((e as Error).message), 15_000), [q, unreadOnly, role]);
   const open = threads?.find((t) => t.id === openId) ?? null;
 
   const pick = async (studentId: string) => {
@@ -92,17 +99,23 @@ export const OfficeMessages = () => {
     <div className="space-y-6 pb-10">
       <div>
         <h1 className="text-2xl font-black text-fb-textPrimary italic tracking-tight">Messages</h1>
-        <p className="text-sm text-fb-textSecondary">Students' messages to the school office. Every admin sees the same inbox; a dot means the student is waiting for a reply.</p>
+        <p className="text-sm text-fb-textSecondary">Students' and teachers' messages to the school office. Every admin sees the same inbox; a dot means they're waiting for a reply.</p>
       </div>
       {error && <p role="alert" className="text-sm font-bold text-red-700 flex items-center gap-2"><AlertCircle size={16} /> {error}</p>}
       <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
         <section aria-label="Inbox" className={`bg-white rounded-xl border border-fb-border shadow-sm overflow-hidden ${open ? 'hidden lg:block' : ''}`}>
           <div className="p-3 border-b border-fb-border space-y-2">
             <div className="flex gap-2">
-              <input type="search" aria-label="Search students" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)}
+              <input type="search" aria-label="Search conversations" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)}
                 className="flex-1 min-w-0 bg-white border-2 border-fb-gray rounded-xl px-3 py-2 text-sm outline-none focus:border-fb-blue" />
               <button type="button" onClick={() => setPicking(true)} aria-label="New message" title="New message"
                 className="shrink-0 px-3 rounded-xl bg-fb-blue text-white"><MessageSquarePlus size={16} /></button>
+            </div>
+            <div role="group" aria-label="Show" className="flex gap-1">
+              {([['', 'All'], ['student', 'Students'], ['teacher', 'Teachers']] as const).map(([v, label]) => (
+                <button key={v} type="button" aria-pressed={role === v} onClick={() => setRole(v)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${role === v ? 'bg-fb-blue text-white' : 'bg-fb-gray text-fb-textSecondary'}`}>{label}</button>
+              ))}
             </div>
             <label className="flex items-center gap-2 text-xs font-semibold text-fb-textPrimary">
               <input type="checkbox" className="accent-fb-blue w-4 h-4" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
@@ -111,7 +124,7 @@ export const OfficeMessages = () => {
           </div>
           {picking && <NewThread onPick={pick} onClose={() => setPicking(false)} />}
           {!threads && <p className="p-4 text-sm text-fb-textSecondary flex items-center gap-2"><RefreshCw size={14} className="animate-spin" /> Loading…</p>}
-          {threads?.length === 0 && <p className="p-4 text-sm text-fb-textSecondary">{q || unreadOnly ? 'No matching conversations.' : 'No messages yet.'}</p>}
+          {threads?.length === 0 && <p className="p-4 text-sm text-fb-textSecondary">{q || unreadOnly || role ? 'No matching conversations.' : 'No messages yet.'}</p>}
           <ul className="divide-y divide-fb-border max-h-[65vh] overflow-y-auto">
             {threads?.map((t) => (
               <li key={t.id}>
@@ -121,6 +134,7 @@ export const OfficeMessages = () => {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline gap-2">
                       <span className={`truncate text-sm ${t.unread ? 'font-black' : 'font-bold'}`}>{t.studentName}</span>
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${t.role === 'teacher' ? 'bg-violet-100 text-violet-800' : 'bg-fb-gray text-fb-textSecondary'}`}>{t.role === 'teacher' ? 'Teacher' : 'Student'}</span>
                       {t.status === 'closed' && <Lock size={11} className="shrink-0 text-fb-textSecondary" aria-label="Closed" />}
                       <span className="ml-auto shrink-0 text-[11px] text-fb-textSecondary">{when(t.lastMessageAt)}</span>
                     </span>

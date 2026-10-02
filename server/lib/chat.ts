@@ -1,4 +1,6 @@
-// Chat with the school office: one thread per student, answered by any admin. Messages live in
+// Chat with the school office: one thread per member (a student or a teacher), answered by any admin.
+// The thread's owner is stored in conversations.student_id (named before teachers could chat), and
+// last_sender_role "student" means "the member" either way. Messages live in
 // Postgres; screens poll for new ones (after the last id they have), so no outside service is needed.
 // Old messages are archived by an admin: downloaded as PDF + CSV, then removed (see purgeArchive).
 import { and, asc, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
@@ -27,16 +29,20 @@ async function chatEnabled(db: DbOrTx) {
   return (await getSetting(db, "features")).chat;
 }
 
-/** The student's thread, created on first use. */
+/** Accounts that can have a thread with the office. */
+const MEMBER_ROLES = ["student", "teacher"] as const;
+const isMemberRole = (role: string | undefined): role is (typeof MEMBER_ROLES)[number] => (MEMBER_ROLES as readonly string[]).includes(role ?? "");
+
+/** A member's thread (student or teacher), created on first use. */
 export async function getOrCreateConversation(db: DbOrTx, studentId: string) {
-  const [student] = await db.select({ role: users.role }).from(users).where(eq(users.id, studentId));
-  if (student?.role !== "student") throw new HttpError(400, "studentId: not a student account");
+  const [member] = await db.select({ role: users.role }).from(users).where(eq(users.id, studentId));
+  if (!isMemberRole(member?.role)) throw new HttpError(400, "studentId: not a student or teacher account");
   await db.insert(conversations).values({ studentId }).onConflictDoNothing();
   const [c] = await db.select().from(conversations).where(eq(conversations.studentId, studentId));
   return c;
 }
 
-/** The conversation, if this user may see it (its student, or the school office). */
+/** The conversation, if this user may see it (its member, or the school office). */
 async function conversationFor(db: DbOrTx, user: User, id: string, lock = false) {
   const q = db.select().from(conversations).where(eq(conversations.id, id));
   const [c] = lock ? await q.for("update") : await q;
@@ -50,9 +56,9 @@ const shapeConversation = (c: Conversation, user: User) => ({
   unread: isOffice(user) ? unreadForOffice(c) : unreadForStudent(c),
 });
 
-/** A student's own thread, plus whether they can write. */
+/** A student's or teacher's own thread, plus whether they can write. */
 export async function myConversation(db: DbOrTx, user: User) {
-  if (user.role !== "student") throw new HttpError(403, "Only students have a thread with the school office");
+  if (!isMemberRole(user.role)) throw new HttpError(403, "Only students and teachers have a thread with the school office");
   const c = await getOrCreateConversation(db, user.id);
   return { ...shapeConversation(c, user), chatEnabled: await chatEnabled(db) };
 }
@@ -61,13 +67,14 @@ export const InboxFilter = z.object({
   q: z.string().trim().max(100).optional(),
   unread: z.enum(["true", "false"]).optional(),
   status: z.enum(["open", "closed"]).optional(),
+  role: z.enum(MEMBER_ROLES).optional(),
 });
 
 /** The school office's inbox: newest activity first, with a preview of the last message. */
 export async function listConversations(db: DbOrTx, user: User, f: z.infer<typeof InboxFilter>) {
   const name = sql`(${users.firstName} || ' ' || ${users.lastName})`;
   const rows = await db.select({
-    c: conversations, firstName: users.firstName, lastName: users.lastName, studentNo: studentRecords.studentNo, cohort: cohorts.name,
+    c: conversations, firstName: users.firstName, lastName: users.lastName, role: users.role, studentNo: studentRecords.studentNo, cohort: cohorts.name,
     last: sql<string | null>`(SELECT body FROM messages m WHERE m.conversation_id = ${conversations.id} ORDER BY m.id DESC LIMIT 1)`,
   }).from(conversations)
     .innerJoin(users, eq(users.id, conversations.studentId))
@@ -75,19 +82,20 @@ export async function listConversations(db: DbOrTx, user: User, f: z.infer<typeo
     .leftJoin(cohorts, eq(cohorts.id, studentRecords.cohortId))
     .where(and(
       f.status ? eq(conversations.status, f.status) : undefined,
+      f.role ? eq(users.role, f.role) : undefined,
       f.q ? or(ilike(name, `%${f.q}%`), ilike(studentRecords.studentNo, `%${f.q}%`)) : undefined,
       f.unread === "true" ? and(eq(conversations.lastSenderRole, "student"),
         or(isNull(conversations.adminLastReadAt), gt(conversations.lastMessageAt, conversations.adminLastReadAt))) : undefined,
     ))
     .orderBy(sql`${conversations.lastMessageAt} DESC NULLS LAST`, desc(conversations.createdAt))
     .limit(200);
-  return rows.map(({ c, firstName, lastName, studentNo, cohort, last }) => ({
-    ...shapeConversation(c, user), studentName: `${firstName} ${lastName}`, studentNo, cohort,
+  return rows.map(({ c, firstName, lastName, role, studentNo, cohort, last }) => ({
+    ...shapeConversation(c, user), studentName: `${firstName} ${lastName}`, role, studentNo, cohort,
     lastSenderRole: c.lastSenderRole, preview: last ? last.slice(0, 140) : null,
   }));
 }
 
-/** Unread count for the sidebar badge: threads waiting for the office, or 0/1 for a student. */
+/** Unread count for the sidebar badge: threads waiting for the office, or 0/1 for a member. */
 export async function unreadCount(db: DbOrTx, user: User) {
   if (isOffice(user)) {
     const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(conversations).where(and(
@@ -159,7 +167,7 @@ export async function sendMessage(db: DbOrTx, user: User, conversationId: string
     const admins = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "admin"), eq(users.status, "active")));
     await notify(db, admins.map((a) => ({
       userId: a.id, kind: "message" as const, link: "messages", data: { conversationId: c.id },
-      title: `Message from ${user.firstName} ${user.lastName}`, body: preview,
+      title: `Message from ${user.firstName} ${user.lastName}${user.role === "teacher" ? " (Teacher)" : ""}`, body: preview,
     })));
   }
   return { id: m.id, createdAt: m.createdAt };
@@ -212,7 +220,7 @@ export async function exportArchive(db: DbOrTx, q: z.infer<typeof ExportQuery>) 
   const student = alias(users, "student");
   const rows = await db.select({
     id: messages.id, createdAt: messages.createdAt, body: messages.body, conversationId: messages.conversationId,
-    studentId: conversations.studentId, studentFirst: student.firstName, studentLast: student.lastName,
+    studentId: conversations.studentId, studentFirst: student.firstName, studentLast: student.lastName, memberRole: student.role,
     studentNo: studentRecords.studentNo, senderId: messages.senderId, senderFirst: sender.firstName, senderLast: sender.lastName,
   }).from(messages)
     .innerJoin(conversations, eq(conversations.id, messages.conversationId))
@@ -225,7 +233,7 @@ export async function exportArchive(db: DbOrTx, q: z.infer<typeof ExportQuery>) 
   return {
     messages: page.map((r) => ({
       id: r.id, createdAt: r.createdAt, body: r.body, conversationId: r.conversationId,
-      studentName: `${r.studentFirst} ${r.studentLast}`, studentNo: r.studentNo,
+      studentName: `${r.studentFirst} ${r.studentLast}`, studentNo: r.studentNo, memberRole: r.memberRole,
       senderName: r.senderFirst ? `${r.senderFirst} ${r.senderLast}` : "Deleted account",
       fromOffice: r.senderId !== r.studentId,
     })),
@@ -254,7 +262,7 @@ export async function purgeArchive(db: DbOrTx, user: User, input: z.infer<typeof
   return { removed: removed.length };
 }
 
-/** For tests and the inbox: start (or open) a thread with a student. */
+/** For tests and the inbox: start (or open) a thread with a student or teacher. */
 export async function startConversation(db: DbOrTx, studentId: string) {
   const c = await getOrCreateConversation(db, studentId);
   return c.id;

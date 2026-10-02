@@ -11,12 +11,14 @@ export interface ChatMessage { id: number; body: string; createdAt: string; send
 export interface MyThread { id: string; studentId: string; status: 'open' | 'closed'; lastMessageAt: string | null; unread: boolean; chatEnabled: boolean }
 export interface InboxThread {
   id: string; studentId: string; status: 'open' | 'closed'; lastMessageAt: string | null; unread: boolean;
-  studentName: string; studentNo: string | null; cohort: string | null; lastSenderRole: 'student' | 'admin' | null; preview: string | null;
+  /** The member's name and role (threads are with students or teachers). */
+  studentName: string; role: 'student' | 'teacher'; studentNo: string | null; cohort: string | null;
+  lastSenderRole: 'student' | 'admin' | null; preview: string | null;
 }
 
 export const fetchMyThread = () => api<MyThread>('chat/conversations');
-export const fetchInbox = (f: { q?: string; unread?: boolean; status?: 'open' | 'closed' } = {}) =>
-  api<InboxThread[]>('chat/conversations', { query: { q: f.q || undefined, unread: f.unread ? 'true' : undefined, status: f.status } });
+export const fetchInbox = (f: { q?: string; unread?: boolean; status?: 'open' | 'closed'; role?: 'student' | 'teacher' } = {}) =>
+  api<InboxThread[]>('chat/conversations', { query: { q: f.q || undefined, unread: f.unread ? 'true' : undefined, status: f.status, role: f.role } });
 export const startThread = (studentId: string) => api<{ id: string }>('chat/conversations', { method: 'POST', body: { studentId } });
 export const setThreadStatus = (id: string, status: 'open' | 'closed') =>
   api<{ status: string }>(`chat/conversations/${id}`, { method: 'PATCH', body: { status } });
@@ -124,7 +126,7 @@ export interface ArchiveSummary {
 }
 export interface ArchivedMessage {
   id: number; createdAt: string; body: string; conversationId: string;
-  studentName: string; studentNo: string | null; senderName: string; fromOffice: boolean;
+  studentName: string; studentNo: string | null; memberRole?: 'student' | 'teacher'; senderName: string; fromOffice: boolean;
 }
 export const fetchArchiveSummary = (before: string) => api<ArchiveSummary>('chat/archive', { query: { before } });
 export async function fetchArchive(before: string, onProgress: (n: number) => void) {
@@ -146,9 +148,9 @@ const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"
 
 /** All archived messages as CSV (UTF-8 with a byte-order mark so Excel reads accents and ₱ correctly). */
 export function archiveCsv(rows: ArchivedMessage[]) {
-  const lines = [['Date and time (Manila)', 'Student', 'Student no.', 'From', 'Message'].join(',')];
+  const lines = [['Date and time (Manila)', 'Member', 'Role', 'Student no.', 'From', 'Message'].join(',')];
   for (const m of rows) {
-    lines.push([manila(m.createdAt), m.studentName, m.studentNo ?? '', m.fromOffice ? `${m.senderName} (school office)` : m.senderName, m.body]
+    lines.push([manila(m.createdAt), m.studentName, m.memberRole === 'teacher' ? 'Teacher' : 'Student', m.studentNo ?? '', m.fromOffice ? `${m.senderName} (school office)` : m.senderName, m.body]
       .map(csvCell).join(','));
   }
   return new Blob(['﻿', lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -176,7 +178,7 @@ export async function archivePdf(rows: ArchivedMessage[], before: string) {
   for (const thread of ordered) {
     doc.addPage(); y = M;
     const s = thread[0];
-    doc.setFont('helvetica', 'bold').setFontSize(14).text(`${s.studentName}${s.studentNo ? ` (${s.studentNo})` : ''}`, M, y); y += 22;
+    doc.setFont('helvetica', 'bold').setFontSize(14).text(`${s.studentName}${s.memberRole === 'teacher' ? ' (Teacher)' : s.studentNo ? ` (${s.studentNo})` : ''}`, M, y); y += 22;
     for (const m of thread) {
       // jsPDF's built-in fonts are Latin-1; keep the text readable if someone typed emoji.
       const body = m.body.replace(/[^\u0000-ÿ₱]/g, '?').replace(/₱/g, 'PHP ');
